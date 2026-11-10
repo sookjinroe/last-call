@@ -9,16 +9,16 @@
 <title>LAST CALL 사장님</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Limelight&family=Gowun+Dodum&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Monoton&family=Song+Myung&family=Hahmlet:wght@400;600;700&family=VT323&display=swap">
 <style>
 /* Owner console: a POS-style table map. Tiles = tables, colour = state, coupons served right on the tile. */
 :root{
   --felt:#10302a; --brass:#caa452; --brass-dim:#8a6d2c; --cream:#f1e8d2;
   --ink:#efe6cf; --glow:#ffd77a; --danger:#ff9a8a; --ok:#9fd39a;
   --s-free:#5f9a6a; --s-play:#caa452; --s-prize:#e04650; --s-done:#8a8573;
-  --f-display:"Limelight","Didot",Georgia,serif;
-  --f-body:"Gowun Dodum","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
-  --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --f-display:"Monoton","Song Myung",Georgia,serif;   /* neon-tube sign; Korean falls through to a Ming-style serif */
+  --f-body:"Hahmlet","Apple SD Gothic Neo","Noto Serif KR",serif;
+  --f-num:"VT323",ui-monospace,Menlo,monospace;   /* LED counter digits */
   color-scheme:dark;
   padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
 }
@@ -112,6 +112,16 @@ ol.how{margin:0;padding-left:20px;color:#ead9b2;display:grid;gap:4px}
 .keypad .muted{font:600 15px var(--f-body);color:#c7ad78}
 @media (max-width:560px){.kpi b{font-size:22px}.tables{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*{animation:none !important}}
+/* type system: Monoton (neon sign) · Song Myung (Korean headlines) · Hahmlet (text) · VT323 (LED digits) */
+header h1{letter-spacing:.02em}
+.card h2,.t-no,.t-who{font-family:"Song Myung",var(--f-body);font-weight:400}
+.kpi b{font-weight:400;font-size:36px;line-height:1.05}
+.kpi small,.card h3{font-family:"Song Myung",var(--f-body)}
+.t-meta{font-weight:400;font-size:17px}
+.prize-row code{font-weight:400;font-size:20px}
+.topic{font-weight:400;font-size:21px}
+.keypad button{font-weight:400;font-size:30px}
+@media (max-width:560px){.kpi b{font-size:28px}}
 </style>
 </head>
 <body>

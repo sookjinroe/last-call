@@ -7,7 +7,7 @@
 <title>LAST CALL</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Limelight&family=Gowun+Dodum&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Monoton&family=Song+Myung&family=Hahmlet:wght@400;600;700&family=VT323&display=swap">
 <style>
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 body{margin:0}
@@ -22,9 +22,9 @@ body{margin:0}
   --ink-soft:#b9c2ac;
   --cherry:#b8323a;
   --glow:#ffd77a;
-  --f-display:"Limelight","Didot","Bodoni 72",Georgia,serif;
-  --f-body:"Gowun Dodum","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
-  --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --f-display:"Monoton","Song Myung",Georgia,serif;   /* neon-tube sign; Korean falls through to a Ming-style serif */
+  --f-body:"Hahmlet","Apple SD Gothic Neo","Noto Serif KR",serif;
+  --f-num:"VT323",ui-monospace,Menlo,monospace;   /* LED counter digits */
   /* reel cell: limited by width and, on phones, by the visible height so SPIN stays on the first screen */
   --cell:clamp(60px,min(23vw,calc((100vh - 330px) / 3)),118px);
   color-scheme:dark;
@@ -214,6 +214,21 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
   .controls{margin-top:10px}
   .spin{height:52px}
 }
+/* type system: Monoton (neon sign) · Song Myung (Korean headlines) · Hahmlet (text) · VT323 (LED digits) */
+.marquee h1{font-size:clamp(28px,8.4vw,44px);letter-spacing:.02em}
+.marquee p{font-family:"Song Myung",var(--f-body)}
+.spin{font-size:28px;letter-spacing:.06em}
+.side h2{font-size:28px;letter-spacing:.02em}
+.card h3{font-size:36px;letter-spacing:.02em}
+.card h3.small,.coupon b{font-family:"Song Myung",var(--f-body);font-weight:400}
+.card h3.small{font-size:25px}
+#resultCard h3{font-family:"Song Myung",var(--f-body);letter-spacing:0}
+.lcd b{font-weight:400;font-size:clamp(24px,7vw,30px);line-height:1}
+.lcd small,.group-label,.stamp{font-family:"Song Myung",var(--f-body)}
+.pay .x.coin,.coupon .code,.coupon .qty{font-weight:400;font-size:22px}
+.table-badge b{font-weight:400;font-size:40px}
+.keypad button{font-weight:400;font-size:30px}
+@media (max-width:560px){.marquee h1{font-size:clamp(24px,7.6vw,34px)}.lcd b{font-size:clamp(22px,6.6vw,28px)}}
 </style>
 </head>
 <body>
@@ -444,7 +459,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
 
   <aside class="side">
     <h2>Prizes</h2>
-    <p class="sub">방문하시면 <b>무료 코인 10개</b>를 드려요. 한 줄에 같은 그림 3개가 나오면 경품에 당첨되고, 칵테일이 맞으면 코인이 더 나와요.</p>
+    <p class="sub">무료 코인 <b>10개</b>. 같은 그림 3개면 경품, 칵테일이 맞으면 코인이 더 나와요.</p>
 
     <div class="group-label"><span>경품</span><span>당첨 시</span></div>
     <ul class="pay" id="payClassic"></ul>
@@ -459,8 +474,8 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
       <li>여러 줄이 동시에 맞으면 모두 받아요.</li>
       <li>해피아워 코인은 한 번 돌릴 때 최대 1개예요.</li>
       <li>테이블당 한 번만 참여할 수 있어요.</li>
-      <li>게임이 끝나면 결과 화면을 직원에게 보여 주세요. 쿠폰번호를 확인하고 경품을 드려요. 술 경품은 성인만 받을 수 있어요.</li>
-      <li>코인은 판매하거나 다른 것으로 바꿔 드리지 않아요. 남은 코인은 게임 종료 시 사라져요.</li>
+      <li>게임이 끝나면 결과 화면을 직원에게 보여 주세요. 술 경품은 성인만 받을 수 있어요.</li>
+      <li>코인은 팔거나 다른 것으로 바꿔 드리지 않아요.</li>
     </ul>
   </aside>
 </div>
@@ -474,7 +489,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     <label class="field col"><span>닉네임</span><input id="nick" maxlength="10" autocomplete="off" placeholder="예: 광은" required></label>
     <p class="pin-err" id="joinErr" aria-live="assertive"></p>
     <button class="btn primary" type="submit" id="joinBtn">코인 받고 시작하기</button>
-    <p class="note">테이블당 한 번만 참여할 수 있어요. 닉네임은 경품 확인용으로 사장님께만 보여요.</p>
+    <p class="note">테이블당 한 번</p>
   </form>
 </div>
 
@@ -870,23 +885,23 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
       const allDone = !left && !sending;
       card.innerHTML = `
         <h3>${allDone ? '맛있게 드세요!' : '당첨 축하해요!'}</h3>
-        ${session.cut ? '<p class="note">사장님이 테이블을 정리해서 게임이 끝났어요. 그 전에 받은 경품은 그대로 받을 수 있어요.</p>' : ''}
+        ${session.cut ? '<p class="note">게임이 끝났어요.</p>' : ''}
         <p>${allDone
           ? '경품을 모두 받으셨어요.<br>다음 방문 때 또 도전해 주세요.'
-          : '<b>직원에게 이 화면을 보여 주세요.</b><br>쿠폰번호를 확인하고 경품을 드려요.'}</p>
+          : '<b>직원에게 이 화면을 보여 주세요.</b>'}</p>
         <ul class="coupons">${session.won.map(c => `<li class="coupon${c.served ? ' served' : ''}"><span class="trio">${icon(c.id)}</span><b>${esc(prizeName(c))}</b>${
           c.served ? '<span class="code done">받음 ✓</span>'
           : c.code ? `<span class="code">#${esc(c.code)}</span>` : '<span class="code wait">발급 중…</span>'}</li>`).join('')}</ul>
-        ${sending ? `<p class="sent fail">사장님께 보내는 중이에요… 계속 안 되면 직원에게 이 화면을 보여 주세요.</p><button class="btn ghost" id="retry">다시 보내기</button>`
+        ${sending ? `<p class="sent fail">잠시만요…</p><button class="btn ghost" id="retry">다시 시도</button>`
           : ''}
         <p class="stamp">테이블 ${esc(session.table)} · ${esc(session.name)} · ${when} · ${session.spins}번 돌림</p>`;
     } else {
       card.innerHTML = session.cut ? `
         <h3 class="small">게임이 끝났어요</h3>
-        <p>사장님이 테이블을 정리해서 게임이 끝났어요.<br>새로 하려면 테이블 QR을 다시 찍어 주세요.</p>` : `
+        <p>다음 방문 때 또 만나요!</p>` : `
         <h3 class="small">이번엔 당첨이 없었어요</h3>
         <p>${session.spins}번 돌렸는데 아쉽게 빗나갔어요.<br>다음 방문 때 또 도전해 주세요.</p>
-        ${sending ? `<p class="sent fail">사장님께 보내는 중이에요…</p><button class="btn ghost" id="retry">다시 보내기</button>` : ''}
+        ${sending ? `<p class="sent fail">잠시만요…</p><button class="btn ghost" id="retry">다시 시도</button>` : ''}
         <p class="stamp">테이블 ${esc(session.table)} · ${esc(session.name)} · ${when}</p>`;
     }
     const r = $('retry'); if (r) r.onclick = () => flush();
@@ -921,13 +936,13 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
   // ---------- entry from the table's QR sticker (?t=<table number>) ----------
   const tableNo = (new URLSearchParams(location.search).get('t') || '').replace(/\D/g, '').slice(0, 3);
   function infoCard(title, body, btn, onBtn){
-    $('infoCard').innerHTML = `<h3 class="small">${title}</h3><p>${body}</p>${btn ? `<button class="btn" id="infoBtn">${btn}</button>` : ''}`;
+    $('infoCard').innerHTML = `<h3 class="small">${title}</h3>${body ? `<p>${body}</p>` : ''}${btn ? `<button class="btn" id="infoBtn">${btn}</button>` : ''}`;
     const b = $('infoBtn'); if (b) b.onclick = () => { hide('info'); onBtn && onBtn(); };
     show('info');
   }
   function refuse(status, name){
-    if (status === '게임 중') infoCard(`테이블 ${esc(tableNo)}는 지금 게임 중이에요`, `${esc(name || '다른 분')} 님이 먼저 시작했어요.<br>테이블당 한 번만 참여할 수 있어요.`);
-    else infoCard('이 테이블은 이미 참여했어요', '테이블당 한 번만 참여할 수 있어요.<br>다음 방문 때 또 만나요!');
+    if (status === '게임 중') infoCard('이미 게임 중이에요', `${esc(name || '다른 분')} 님이 먼저 시작했어요.`);
+    else infoCard('이 테이블은 이미 참여했어요', '다음 방문 때 또 만나요!');
   }
   // rebuild the game from the address bar + the sheet when this browser kept nothing
   async function restoreFromUrl(){
@@ -946,26 +961,26 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     } catch {}
   }
   async function checkTable(){
-    if (!API) return infoCard('준비 중이에요', '사장님이 연결 설정을 마치면 게임할 수 있어요.');
+    if (!API) return infoCard('지금은 쉬는 중이에요', '조금 뒤에 다시 찾아 주세요.');
     await restoreFromUrl();
     if (session && session.ended && session.table === tableNo && new URLSearchParams(location.search).get('s') === session.id) return renderResult();
     if (session && !session.ended) { setMessage(`남은 코인 ${session.coins}개. SPIN을 눌러 계속하세요.`); flush(); return; }
     if (!tableNo) {
       if (session) return renderResult();
-      return infoCard('테이블 QR을 찍어 주세요', '테이블에 붙은 QR을 폰 카메라로 찍으면<br>무료 코인 10개로 게임할 수 있어요.');
+      return infoCard('테이블 QR을 찍어 주세요', '무료 코인 10개로 한 판!');
     }
     const lastHere = session && session.table === tableNo && session.ended;
     if (lastHere && session.ops && session.ops.length) { renderResult(); flush(); return; }
-    infoCard('테이블 확인 중…', `테이블 ${esc(tableNo)} 상태를 확인하고 있어요.`);
+    infoCard('잠시만요…', '');
     let r;
     try { r = await apiGet(lastHere ? { action:'table', table: tableNo, session: session.id } : { action:'table', table: tableNo }); }
     catch {
       if (lastHere) { hide('info'); return renderResult(); }
-      return infoCard('연결이 안 돼요', '인터넷 연결을 확인하고 다시 시도해 주세요.', '다시 시도', checkTable);
+      return infoCard('연결이 안 돼요', '인터넷을 확인해 주세요.', '다시 시도', checkTable);
     }
     hide('info');
     if (lastHere && r.ok && r.mine) return renderResult();   // still this visit: show the end screen again
-    if (!r.ok) return infoCard('테이블을 찾을 수 없어요', 'QR이 맞는지 직원에게 확인해 주세요.');
+    if (!r.ok) return infoCard('QR을 다시 찍어 주세요', '');
     prizes = Object.assign({}, PRIZE_DEFAULTS, r.prizes || {}); buildPaytable();
     if (r.status !== '게임 가능') return refuse(r.status, r.name);
     $('joinTable').textContent = tableNo;
