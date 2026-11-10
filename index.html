@@ -178,6 +178,9 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
 .field.col{grid-template-columns:1fr;gap:6px;text-align:left;font-size:14px;color:#d8bf86}
 .field.col input{height:52px;font-size:20px}
 .coupon .code{font:600 18px var(--f-num);color:var(--glow);letter-spacing:.06em}
+.coupon .code.wait{font:14px var(--f-body);color:#c7ad78;letter-spacing:0}
+.table-badge{font-size:15px;color:#d8bf86 !important;letter-spacing:.1em}
+.table-badge b{font:600 30px var(--f-num);color:var(--glow);margin-left:4px}
 .sent{font-size:13px;color:#9fd39a !important}
 .sent.fail{color:#ff9a8a !important}
 #pinModal,#admin{z-index:70}
@@ -409,7 +412,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
       <div class="lcd win"><small>당첨 경품</small><b id="prizeCount">0</b></div>
     </div>
 
-    <div class="message" id="message" aria-live="polite">가게 QR을 찍어 입장해 주세요.</div>
+    <div class="message" id="message" aria-live="polite">테이블 QR을 찍어 입장해 주세요.</div>
 
     <div class="controls">
       <button class="spin" id="spin">SPIN</button>
@@ -435,22 +438,23 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     <ul class="rules">
       <li>여러 줄이 동시에 맞으면 모두 받아요.</li>
       <li>해피아워 코인은 한 번 돌릴 때 최대 1개예요.</li>
-      <li>당첨되면 사장님께 알림이 가요. 쿠폰 번호를 직원에게 보여 주시면 경품을 드려요. 술 경품은 성인만 받을 수 있어요.</li>
+      <li>테이블당 한 번만 참여할 수 있어요.</li>
+      <li>당첨되면 사장님께 바로 전달돼요. 쿠폰 번호를 직원에게 보여 주시면 경품을 드려요. 술 경품은 성인만 받을 수 있어요.</li>
       <li>코인은 판매하거나 다른 것으로 바꿔 드리지 않아요. 남은 코인은 게임 종료 시 사라져요.</li>
     </ul>
   </aside>
 </div>
 
-<!-- entry: table number + nickname -->
+<!-- entry: nickname (the table comes from the QR sticker) -->
 <div class="overlay" id="join" hidden>
   <form class="card" id="joinForm" novalidate>
     <h3>LAST CALL</h3>
-    <p>무료 코인 <b>10개</b>로 슬롯을 돌려 보세요.<br>당첨되면 사장님께 바로 알림이 가요.</p>
-    <label class="field col"><span>테이블 번호</span><input id="tableNo" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off" required></label>
+    <p class="table-badge">테이블 <b id="joinTable"></b></p>
+    <p>무료 코인 <b>10개</b>로 슬롯을 돌려 보세요.<br>같은 그림 3개면 메뉴 경품을 드려요.</p>
     <label class="field col"><span>닉네임</span><input id="nick" maxlength="10" autocomplete="off" placeholder="예: 민수" required></label>
     <p class="pin-err" id="joinErr" aria-live="assertive"></p>
-    <button class="btn primary" type="submit">코인 받고 시작하기</button>
-    <p class="note">입력한 테이블 번호와 닉네임은 경품 확인용으로 사장님께만 전달돼요.</p>
+    <button class="btn primary" type="submit" id="joinBtn">코인 받고 시작하기</button>
+    <p class="note">테이블당 한 번만 참여할 수 있어요. 닉네임은 경품 확인용으로 사장님께만 보여요.</p>
   </form>
 </div>
 
@@ -464,6 +468,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
   <div class="card" id="resultCard"></div>
 </div>
 
+<script src="config.js"></script>
 <script src="vendor/three.min.js"></script>
 <script>
 (() => {
@@ -503,14 +508,14 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
   const pick = () => { let r = Math.random()*totalWeight; for (const s of SYMBOLS){ if((r-=s.weight)<0) return s.id; } return SYMBOLS[0].id; };
 
   // ---------- state (kept on this phone) ----------
-  const KEY = 'lastcall-guest-v1';
+  const KEY = 'lastcall-guest-v2';
   const store = {
     get(){ try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } },
     set(v){ try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} }
   };
   const saved = store.get() || {};
   let soundOn = saved.soundOn !== false;
-  // session: {nonce, topic, table, name, prizes, coins, spins, won:[{id,code}], outbox:[msg], started, ended}
+  // session: {table, id, name, prizes, coins, spins, won:[{id,uid,code,prize}], ops:[queued sheet calls], started, ended}
   let session = saved.session && Number.isFinite(saved.session.coins) ? saved.session : null;
   let prizes = Object.assign({}, PRIZE_DEFAULTS, session ? session.prizes : {});
   let spinning = false;
@@ -747,10 +752,11 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     if (session) {
       session.coins += bonus;
       prizeWins.forEach(w => {
-        const c = { id: w.key, code: couponCode() };
+        const c = { id: w.key, uid: crypto.getRandomValues(new Uint32Array(2)).join('-'), code: '' };
         session.won.push(c);
-        queue({ title:'경품 당첨', message:`테이블 ${session.table} · ${session.name} — ${prizes[w.key]} 당첨 (쿠폰 ${c.code})`, tags:['tada'], priority:4 });
+        enqueue({ action:'prize', symbol: w.key, uid: c.uid });   // the sheet issues the coupon number
       });
+      if (!prizeWins.length) enqueue({ action:'spin' });            // keeps the table's '마지막 활동' fresh
     }
     if (wins.length) {
       showWins(wins);
@@ -768,53 +774,57 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     } else {
       setMessage(['빈 잔이네요. 한 번 더?','바텐더가 고개를 젓습니다.','얼음만 남았어요.','다음 잔은 다를 거예요.'][Math.floor(Math.random()*4)]);
     }
-    updateUI(); save(); flush();
+    updateUI(); save();
     if (session && session.coins < 1) setTimeout(() => endSession(), 1800);
   }
 
-  // ---------- notifications to the owner's phone (ntfy) ----------
-  const couponCode = () => String(1000 + crypto.getRandomValues(new Uint32Array(1))[0] % 9000);
-  function queue(msg){ if (!session) return; session.outbox = session.outbox || []; session.outbox.push(msg); save(); }
-  let flushing = false, lastSendOk = true;
+  // ---------- talking to the store's Google Sheet (Apps Script web app) ----------
+  const API = String(window.LASTCALL_API || '').trim();
+  async function apiPost(body){ const r = await fetch(API, { method:'POST', body: JSON.stringify(body) }); return r.json(); }
+  async function apiGet(params){ const u = new URL(API); Object.keys(params).forEach(k => u.searchParams.set(k, params[k])); const r = await fetch(u); return r.json(); }
+  // results are queued on the phone and sent in order, so a weak signal never loses a coupon
+  function enqueue(op){ if (!session) return; session.ops = session.ops || []; session.ops.push(op); save(); flush(); }
+  let flushing = false;
   async function flush(){
-    if (flushing || !session || !session.outbox || !session.outbox.length) return;
+    if (flushing || !session || !session.ops || !session.ops.length) return;
     flushing = true;
     try {
-      while (session && session.outbox.length) {
-        const m = session.outbox[0];
-        const res = await fetch('https://ntfy.sh/', { method:'POST', body: JSON.stringify(Object.assign({ topic: session.topic }, m)) });
-        if (!res.ok) throw new Error('ntfy ' + res.status);
-        session.outbox.shift(); save();
+      while (session && session.ops.length) {
+        const op = session.ops[0];
+        const res = await apiPost(Object.assign({ table: session.table, session: session.id, spins: session.spins }, op));
+        if (!res.ok && res.error === 'busy') throw new Error('busy');
+        if (op.action === 'prize' && res.ok) {
+          const c = session.won.find(x => x.uid === op.uid);
+          if (c) { c.code = res.code; c.prize = res.prize; }
+        }
+        session.ops.shift(); save();   // other refusals (e.g. the owner reset the table) are dropped so nothing jams
       }
-      lastSendOk = true;
-    } catch { lastSendOk = false; setTimeout(flush, 8000); }
+    } catch { setTimeout(flush, 5000); }
     flushing = false;
     if (!$('result').hidden && session && session.ended) renderResult();
   }
   window.addEventListener('online', flush);
+  const prizeName = c => c.prize || prizes[c.id];
 
   // ---------- end of game ----------
   function endSession(){
     if (!session || session.ended) return;
     session.ended = true;
-    const sum = session.won.length
-      ? session.won.map(c => `${prizes[c.id]} (쿠폰 ${c.code})`).join(', ')
-      : '당첨 없음';
-    queue({ title:'게임 종료', message:`테이블 ${session.table} · ${session.name} — ${session.spins}번 돌림 · ${sum}`, tags:['checkered_flag'], priority:3 });
-    save(); updateUI(); flush();
+    enqueue({ action:'end' });
+    save(); updateUI();
     renderResult();
   }
   function renderResult(){
     const card = $('resultCard');
-    const pending = session.outbox && session.outbox.length;
+    const pending = session.ops && session.ops.length;
     const status = pending
-      ? `<p class="sent fail">사장님께 알림을 보내는 중이에요… 안 되면 이 화면을 직원에게 보여 주세요. <button class="btn ghost" id="retry" style="min-height:36px;margin-top:8px">다시 보내기</button></p>`
-      : `<p class="sent">사장님께 알림을 보냈어요.</p>`;
+      ? `<p class="sent fail">사장님께 보내는 중이에요… 계속 안 되면 이 화면을 직원에게 보여 주세요.</p><button class="btn ghost" id="retry">다시 보내기</button>`
+      : `<p class="sent">사장님께 전달됐어요.</p>`;
     if (session.won.length) {
       card.innerHTML = `
         <h3>당첨 축하해요!</h3>
         <p>테이블 ${esc(session.table)} · ${esc(session.name)}<br>직원에게 이 화면을 보여 주시면 경품을 드려요.</p>
-        <ul class="coupons">${session.won.map(c => `<li class="coupon"><span class="trio">${icon(c.id)}</span><b>${esc(prizes[c.id])}</b><span class="code">#${c.code}</span></li>`).join('')}</ul>
+        <ul class="coupons">${session.won.map(c => `<li class="coupon"><span class="trio">${icon(c.id)}</span><b>${esc(prizeName(c))}</b>${c.code ? `<span class="code">#${esc(c.code)}</span>` : '<span class="code wait">발급 중…</span>'}</li>`).join('')}</ul>
         ${status}
         <p class="stamp">${new Date(session.started).toLocaleString('ko-KR', { month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' })} · ${session.spins}번 돌림</p>
         <button class="btn" id="closeBtn">닫기</button>`;
@@ -840,37 +850,54 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     show('result');
   }
 
-  // ---------- entry from the store's QR ----------
-  // QR payload (base64url JSON): {v:1, n:nonce, e:expiresAt(ms), k:ntfy topic, p:[4 prize names]}
-  function readToken(){
-    const t = new URLSearchParams(location.search).get('t'); if (!t) return null;
-    try {
-      const bin = atob(t.replace(/-/g,'+').replace(/_/g,'/'));
-      const d = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, ch => ch.charCodeAt(0))));
-      return d && d.v === 1 && d.n && d.e && d.k ? d : null;
-    } catch { return null; }
-  }
-  function infoCard(title, body, btn){
+  // ---------- entry from the table's QR sticker (?t=<table number>) ----------
+  const tableNo = (new URLSearchParams(location.search).get('t') || '').replace(/\D/g, '').slice(0, 3);
+  function infoCard(title, body, btn, onBtn){
     $('infoCard').innerHTML = `<h3 class="small">${title}</h3><p>${body}</p>${btn ? `<button class="btn" id="infoBtn">${btn}</button>` : ''}`;
-    const b = $('infoBtn'); if (b) b.onclick = () => hide('info');
+    const b = $('infoBtn'); if (b) b.onclick = () => { hide('info'); onBtn && onBtn(); };
     show('info');
   }
-  let pendingToken = null;
-  $('joinForm').addEventListener('submit', e => {
+  function refuse(status, name){
+    if (status === '게임 중') infoCard(`테이블 ${esc(tableNo)}는 지금 게임 중이에요`, `${esc(name || '다른 분')} 님이 먼저 시작했어요.<br>테이블당 한 번만 참여할 수 있어요.`);
+    else infoCard('이 테이블은 이미 참여했어요', '테이블당 한 번만 참여할 수 있어요.<br>다음 방문 때 또 만나요!');
+  }
+  async function checkTable(){
+    if (!API) return infoCard('준비 중이에요', '사장님이 연결 설정을 마치면 게임할 수 있어요.');
+    if (session && !session.ended) { setMessage(`남은 코인 ${session.coins}개. SPIN을 눌러 계속하세요.`); flush(); return; }
+    if (!tableNo) {
+      if (session) return renderResult();
+      return infoCard('테이블 QR을 찍어 주세요', '테이블에 붙은 QR을 폰 카메라로 찍으면<br>무료 코인 10개로 게임할 수 있어요.');
+    }
+    if (session && session.table === tableNo && session.ended) { renderResult(); flush(); return; }
+    infoCard('테이블 확인 중…', `테이블 ${esc(tableNo)} 상태를 확인하고 있어요.`);
+    let r;
+    try { r = await apiGet({ action:'table', table: tableNo }); }
+    catch { return infoCard('연결이 안 돼요', '인터넷 연결을 확인하고 다시 시도해 주세요.', '다시 시도', checkTable); }
+    hide('info');
+    if (!r.ok) return infoCard('테이블을 찾을 수 없어요', 'QR이 맞는지 직원에게 확인해 주세요.');
+    prizes = Object.assign({}, PRIZE_DEFAULTS, r.prizes || {}); buildPaytable();
+    if (r.status !== '게임 가능') return refuse(r.status, r.name);
+    $('joinTable').textContent = tableNo;
+    show('join'); setTimeout(() => $('nick').focus(), 50);
+  }
+  $('joinForm').addEventListener('submit', async e => {
     e.preventDefault();
-    const table = $('tableNo').value.trim(), name = $('nick').value.trim();
-    if (!/^\d{1,3}$/.test(table)) { $('joinErr').textContent = '테이블 번호를 숫자로 적어 주세요.'; return; }
+    const name = $('nick').value.trim();
     if (!name) { $('joinErr').textContent = '닉네임을 적어 주세요.'; return; }
-    if (Date.now() > pendingToken.e) { hide('join'); infoCard('QR이 만료됐어요', '직원에게 새 QR을 요청해 주세요.'); return; }
-    const tk = pendingToken;
-    const p = Array.isArray(tk.p) ? tk.p : [];
-    const pz = {}; PRIZE_IDS.forEach((id,i) => pz[id] = (typeof p[i] === 'string' && p[i].trim()) ? p[i].trim().slice(0,24) : PRIZE_DEFAULTS[id]);
-    session = { nonce: tk.n, topic: String(tk.k), table, name: name.slice(0,10), prizes: pz,
-                coins: START_COINS, spins: 0, won: [], outbox: [], started: Date.now(), ended: false };
-    prizes = Object.assign({}, PRIZE_DEFAULTS, pz);
-    buildPaytable();
-    queue({ title:'손님 입장', message:`테이블 ${table} · ${session.name} 님이 게임을 시작했어요`, tags:['slot_machine'], priority:2 });
-    save(); hide('join'); updateUI(); flush();
+    $('joinBtn').disabled = true; $('joinErr').textContent = '';
+    let r;
+    try { r = await apiPost({ action:'join', table: tableNo, name }); }
+    catch { $('joinBtn').disabled = false; $('joinErr').textContent = '연결이 안 돼요. 다시 눌러 주세요.'; return; }
+    $('joinBtn').disabled = false;
+    if (!r.ok) {
+      if (r.reason) { hide('join'); return refuse(r.reason, r.name); }
+      $('joinErr').textContent = r.error === 'busy' ? '잠시 후 다시 눌러 주세요.' : '시작하지 못했어요. 직원에게 말씀해 주세요.';
+      return;
+    }
+    prizes = Object.assign({}, PRIZE_DEFAULTS, r.prizes || {});
+    session = { table: String(r.table), id: r.session, name: r.name, prizes: r.prizes || {},
+                coins: START_COINS, spins: 0, won: [], ops: [], started: Date.now(), ended: false };
+    buildPaytable(); save(); hide('join'); clearWins(); updateUI();
     SFX.coins(10, 0);
     setMessage(`코인 ${START_COINS}개 받았어요! SPIN을 눌러 시작하세요.`);
   });
@@ -886,22 +913,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
 
   // ---------- boot ----------
   renderStatic(); muteIcon(); updateUI();
-  const tok = readToken();
-  if (tok) history.replaceState(null, '', location.pathname);   // a refresh or shared link can't replay the QR
-  if (tok && session && session.nonce === tok.n) {
-    tok.n = null; // same QR again on this phone: just resume
-  }
-  if (tok && tok.n) {
-    if (Date.now() > tok.e) infoCard('QR이 만료됐어요', '직원에게 새 QR을 요청해 주세요.', session && !session.ended ? '하던 게임 계속하기' : '');
-    else if (session && !session.ended) infoCard('진행 중인 게임이 있어요', `남은 코인 ${session.coins}개로 이어서 할 수 있어요. 새로 시작하려면 먼저 게임을 종료해 주세요.`, '이어서 하기');
-    else { pendingToken = tok; show('join'); setTimeout(() => $('tableNo').focus(), 50); }
-  } else if (session && session.ended) {
-    renderResult();
-  } else if (session) {
-    setMessage(`남은 코인 ${session.coins}개. SPIN을 눌러 계속하세요.`); flush();
-  } else {
-    infoCard('가게 QR로 입장해 주세요', '직원에게 말씀하시면 입장 QR을 보여 드려요.<br>QR을 찍으면 무료 코인 10개로 게임할 수 있어요.');
-  }
+  checkTable();
 
   // ---------- 3D symbol renders (three.js, rendered once to images) ----------
   function render3DSymbols(bg){
