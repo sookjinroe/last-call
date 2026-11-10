@@ -441,7 +441,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
       <li>여러 줄이 동시에 맞으면 모두 받아요.</li>
       <li>해피아워 코인은 한 번 돌릴 때 최대 1개예요.</li>
       <li>테이블당 한 번만 참여할 수 있어요.</li>
-      <li>당첨되면 사장님께 바로 전달돼요. 쿠폰 번호를 직원에게 보여 주시면 경품을 드려요. 술 경품은 성인만 받을 수 있어요.</li>
+      <li>게임이 끝나면 결과 화면을 직원에게 보여 주세요. 쿠폰번호를 확인하고 경품을 드려요. 술 경품은 성인만 받을 수 있어요.</li>
       <li>코인은 판매하거나 다른 것으로 바꿔 드리지 않아요. 남은 코인은 게임 종료 시 사라져요.</li>
     </ul>
   </aside>
@@ -768,7 +768,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
         ...(happy ? [`해피아워 · 코인 +${HAPPY_BONUS}`] : []),
       ];
       const jackpot = prizeWins.some(w => w.key === 'seven');
-      setMessage((jackpot ? '잭팟! 세븐 세 개!<br>' : '') + lines.join('<br>') + (prizeWins.length ? '<br><small>게임이 끝나면 테이블로 가져다드려요</small>' : ''), prizeWins.length > 0);
+      setMessage((jackpot ? '잭팟! 세븐 세 개!<br>' : '') + lines.join('<br>') + (prizeWins.length ? '<br><small>게임이 끝나면 직원에게 화면을 보여 주세요</small>' : ''), prizeWins.length > 0);
       if (jackpot) { SFX.alarm(2.5); SFX.coins(40, .4); }
       else if (prizeWins.length) { SFX.alarm(1); SFX.coins(10, .3); }
       else { SFX.ding(); SFX.coins(bonus * 2); }
@@ -829,18 +829,18 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
       card.innerHTML = `
         <h3>${allDone ? '맛있게 드세요!' : '당첨 축하해요!'}</h3>
         <p>${allDone
-          ? '경품을 모두 받으셨어요.<br>다음 방문 때 또 도전해 주세요!'
-          : `<b>테이블 ${esc(session.table)}번으로 가져다드릴게요.</b><br>따로 하실 일은 없어요. 자리에서 기다려 주세요.`}</p>
+          ? '경품을 모두 받으셨어요.<br>다음 방문 때 또 도전해 주세요.'
+          : '<b>직원에게 이 화면을 보여 주세요.</b><br>쿠폰번호를 확인하고 경품을 드려요.'}</p>
         <ul class="coupons">${session.won.map(c => `<li class="coupon${c.served ? ' served' : ''}"><span class="trio">${icon(c.id)}</span><b>${esc(prizeName(c))}</b>${
           c.served ? '<span class="code done">받음 ✓</span>'
           : c.code ? `<span class="code">#${esc(c.code)}</span>` : '<span class="code wait">발급 중…</span>'}</li>`).join('')}</ul>
         ${sending ? `<p class="sent fail">사장님께 보내는 중이에요… 계속 안 되면 직원에게 이 화면을 보여 주세요.</p><button class="btn ghost" id="retry">다시 보내기</button>`
-          : allDone ? '' : '<p class="note">경품이 늦어지면 직원에게 이 화면을 보여 주세요.</p>'}
+          : ''}
         <p class="stamp">테이블 ${esc(session.table)} · ${esc(session.name)} · ${when} · ${session.spins}번 돌림</p>`;
     } else {
       card.innerHTML = `
         <h3 class="small">이번엔 당첨이 없었어요</h3>
-        <p>${session.spins}번 돌렸어요. 오늘 게임은 여기까지예요.<br>다음 방문 때 또 도전해 주세요!</p>
+        <p>${session.spins}번 돌렸는데 아쉽게 빗나갔어요.<br>다음 방문 때 또 도전해 주세요.</p>
         ${sending ? `<p class="sent fail">사장님께 보내는 중이에요…</p><button class="btn ghost" id="retry">다시 보내기</button>` : ''}
         <p class="stamp">테이블 ${esc(session.table)} · ${esc(session.name)} · ${when}</p>`;
     }
