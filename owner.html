@@ -271,9 +271,13 @@ ol.how{margin:0;padding-left:20px;color:#ead9b2;display:grid;gap:4px}
     const serveBtn = e.target.closest('.prize-row button');
     if (serveBtn) {
       serveBtn.disabled = true;
-      const r = await apiPost({ action:'serve', code: serveBtn.dataset.code, undo: !!serveBtn.dataset.undo }).catch(() => null);
-      if (!r || !r.ok) alertLine('지급 처리가 안 됐어요. 다시 눌러 주세요.');
-      return refresh();
+      const code = serveBtn.dataset.code, undo = !!serveBtn.dataset.undo;
+      const r = await apiPost({ action:'serve', code, undo }).catch(() => null);
+      await refresh();
+      // the other device may have served it a moment earlier: that's fine, not an error
+      const c = state && state.coupons.find(x => x.code === code);
+      if ((!r || !r.ok) && !(c && c.served === !undo)) alertLine('지급 처리가 안 됐어요. 다시 눌러 주세요.');
+      return;
     }
     const resetBtn = e.target.closest('[data-reset]');
     if (resetBtn) return armOrRun(resetBtn.dataset.reset);

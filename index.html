@@ -794,27 +794,39 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
   async function apiGet(params){ const u = new URL(API); Object.keys(params).forEach(k => u.searchParams.set(k, params[k])); const r = await fetch(u); return r.json(); }
   // results are queued on the phone and sent in order, so a weak signal never loses a coupon
   function enqueue(op){ if (!session) return; session.ops = session.ops || []; session.ops.push(op); save(); flush(); }
-  let flushing = false;
+  let flushing = false, busy = false;
   async function flush(){
     if (flushing || !session || !session.ops || !session.ops.length) return;
-    flushing = true;
+    flushing = true; busy = false;
     try {
       while (session && session.ops.length) {
         const op = session.ops[0];
         const res = await apiPost(Object.assign({ table: session.table, session: session.id, spins: session.spins }, op));
-        if (!res.ok && res.error === 'busy') throw new Error('busy');
+        if (!res.ok && res.error === 'busy') { busy = true; throw new Error('busy'); }
+        if (!res.ok && /지금 게임이 아니에요/.test(res.error || '')) { cutSession(); break; }   // the owner cleared this table
         if (op.action === 'prize' && res.ok) {
           const c = session.won.find(x => x.uid === op.uid);
           if (c) { c.code = res.code; c.prize = res.prize; }
         }
         session.ops.shift(); save();   // other refusals (e.g. the owner reset the table) are dropped so nothing jams
       }
-    } catch { setTimeout(flush, 5000); }
+    } catch { setTimeout(flush, busy ? 1500 : 5000); }   // 'busy' = the sheet was locked for a moment
     flushing = false;
     if (!$('result').hidden && session && session.ended) renderResult();
   }
   window.addEventListener('online', flush);
   const prizeName = c => c.prize || prizes[c.id];
+
+  // The owner pressed '새 손님 받기' while this phone was still playing: stop here and keep only issued coupons.
+  function cutSession(){
+    if (!session) return;
+    session.ops = [];
+    session.won = session.won.filter(c => c.code);
+    session.cut = true; session.coins = 0; session.ended = true;
+    save(); updateUI(); clearWins();
+    setMessage('테이블이 정리돼서 게임이 끝났어요.');
+    renderResult();
+  }
 
   // ---------- end of game ----------
   function endSession(){
@@ -836,6 +848,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
       const allDone = !left && !sending;
       card.innerHTML = `
         <h3>${allDone ? '맛있게 드세요!' : '당첨 축하해요!'}</h3>
+        ${session.cut ? '<p class="note">사장님이 테이블을 정리해서 게임이 끝났어요. 그 전에 받은 경품은 그대로 받을 수 있어요.</p>' : ''}
         <p>${allDone
           ? '경품을 모두 받으셨어요.<br>다음 방문 때 또 도전해 주세요.'
           : '<b>직원에게 이 화면을 보여 주세요.</b><br>쿠폰번호를 확인하고 경품을 드려요.'}</p>
@@ -846,7 +859,9 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
           : ''}
         <p class="stamp">테이블 ${esc(session.table)} · ${esc(session.name)} · ${when} · ${session.spins}번 돌림</p>`;
     } else {
-      card.innerHTML = `
+      card.innerHTML = session.cut ? `
+        <h3 class="small">게임이 끝났어요</h3>
+        <p>사장님이 테이블을 정리해서 게임이 끝났어요.<br>새로 하려면 테이블 QR을 다시 찍어 주세요.</p>` : `
         <h3 class="small">이번엔 당첨이 없었어요</h3>
         <p>${session.spins}번 돌렸는데 아쉽게 빗나갔어요.<br>다음 방문 때 또 도전해 주세요.</p>
         ${sending ? `<p class="sent fail">사장님께 보내는 중이에요…</p><button class="btn ghost" id="retry">다시 보내기</button>` : ''}
