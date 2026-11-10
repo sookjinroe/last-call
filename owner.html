@@ -36,6 +36,11 @@ header h1{margin:0;font-family:var(--f-display);font-weight:400;font-size:clamp(
 .live::before{content:"";width:9px;height:9px;border-radius:50%;background:#8a7a58}
 .live.on{color:var(--ok)}.live.on::before{background:var(--ok);box-shadow:0 0 8px var(--ok)}
 .live.off{color:var(--danger)}.live.off::before{background:var(--danger)}
+.mute-banner{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:10px 16px;border:0;border-radius:14px;cursor:pointer;text-align:left;
+  font:15px var(--f-body);color:#fff3dc;background:#8f1d27;box-shadow:0 0 0 2px #e04650,0 6px 18px rgba(0,0,0,.35);animation:nudge 2.4s ease-in-out infinite}
+.mute-banner svg{width:26px;height:26px;flex:none}
+.mute-banner b{font-size:16px}
+@keyframes nudge{0%,100%{box-shadow:0 0 0 2px #e04650,0 6px 18px rgba(0,0,0,.35)}50%{box-shadow:0 0 0 5px rgba(224,70,80,.55),0 6px 18px rgba(0,0,0,.35)}}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .kpi{background:#0c0805;border-radius:12px;padding:8px 6px;text-align:center;box-shadow:inset 0 0 0 1px #3c2b10}
 .kpi b{display:block;font:600 28px var(--f-num);color:#ffcf6a;font-variant-numeric:tabular-nums}
@@ -115,14 +120,20 @@ ol.how{margin:0;padding-left:20px;color:#ead9b2;display:grid;gap:4px}
     <h1>LAST CALL</h1>
     <div class="head-right">
       <span class="live" id="live">연결 중…</span>
-      <button class="btn small ghost" id="soundBtn">알림음 켜기</button>
     </div>
   </header>
+
+  <!-- shown whenever the alert sound can't play (browsers need one tap per page open) -->
+  <button class="mute-banner" id="soundBtn" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>
+    <span><b>알림음이 꺼져 있어요</b> · 여기를 눌러 켜 주세요. 켜야 입장·당첨 때 소리가 나요.</span>
+  </button>
 
   <!-- first run: enter the admin key from the sheet -->
   <section class="card narrow" id="setup" hidden>
     <h2>처음 설정</h2>
-    <p>구글 시트 <b>'LAST CALL 슬롯 관리'</b>의 <b>설정</b> 탭에 있는 <b>관리키</b>를 입력해 주세요. 이 기기에서 한 번만 하면 돼요.</p>
+    <p>구글 시트 <b>'LAST CALL 슬롯 관리'</b>의 <b>설정</b> 탭에서 <b>'사장님 화면 열기'</b> 링크를 이 기기로 눌러 주세요. 바로 연결돼요.</p>
+    <p class="note">링크를 쓸 수 없으면 같은 탭의 관리키를 아래에 직접 입력해도 돼요.</p>
     <label class="field">관리키<input id="keyInput" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
     <p class="err" id="keyErr" aria-live="assertive"></p>
     <button class="btn primary" id="keyBtn">연결하기</button>
@@ -299,10 +310,19 @@ ol.how{margin:0;padding-left:20px;color:#ead9b2;display:grid;gap:4px}
     seen = now;
   }
   function flashTables(nos){ setTimeout(() => nos.forEach(no => document.querySelector(`.tile[data-no="${CSS.escape(String(no))}"]`)?.classList.add('flash')), 30); }
-  $('soundBtn').onclick = () => {
-    try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); bell([1319,1568], .14); $('soundBtn').hidden = true; } catch {}
-    keepAwake();
+  // iOS suspends audio when the page goes to the background, so re-check whenever it comes back
+  const soundReady = () => !!ac && ac.state === 'running';
+  function updateSoundBanner(){ $('soundBtn').hidden = $('main').hidden || soundReady(); }
+  $('soundBtn').onclick = async () => {
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      await ac.resume();
+      ac.onstatechange = updateSoundBanner;
+      bell([1319,1568], .14);
+    } catch {}
+    updateSoundBanner(); keepAwake();
   };
+  document.addEventListener('visibilitychange', () => setTimeout(updateSoundBanner, 300));
   let wake = null;
   async function keepAwake(){ try { if (!wake && navigator.wakeLock) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => wake = null); } } catch {} }
 
@@ -348,7 +368,7 @@ ol.how{margin:0;padding-left:20px;color:#ead9b2;display:grid;gap:4px}
     if (ok) renderSettings();
   };
   function renderSettings(){
-    const el = $('settings'); $('main').hidden = true; el.hidden = false;
+    const el = $('settings'); $('main').hidden = true; el.hidden = false; updateSoundBanner();
     const p = (state && state.prizes) || {};
     el.innerHTML = `
       <h2>설정</h2>
@@ -391,10 +411,20 @@ ol.how{margin:0;padding-left:20px;color:#ead9b2;display:grid;gap:4px}
     $('back').onclick = showMain;
   }
 
-  function showMain(){ $('setup').hidden = true; $('settings').hidden = true; $('main').hidden = false; if (!timer) start(); }
+  function showMain(){ $('setup').hidden = true; $('settings').hidden = true; $('main').hidden = false; updateSoundBanner(); if (!timer) start(); }
 
   // ---------- boot ----------
-  if (!API || !S.key) showSetup();
+  // The sheet's '사장님 화면 열기' link carries the admin key once; keep it on this device and drop it from the address bar.
+  const linkKey = new URLSearchParams(location.search).get('key');
+  if (linkKey) {
+    try { history.replaceState(null, '', location.pathname); } catch {}
+    if (API) {
+      apiGet({ action:'state', key: linkKey.trim() })
+        .then(r => { if (r.ok) { S.key = linkKey.trim(); save(); showMain(); render(r); } else showSetup('링크의 관리키가 맞지 않아요. 시트의 설정 탭에서 링크를 다시 눌러 주세요.'); })
+        .catch(() => showSetup('시트에 연결하지 못했어요. 인터넷을 확인하고 링크를 다시 눌러 주세요.'));
+    } else showSetup();
+  }
+  else if (!API || !S.key) showSetup();
   else showMain();
 })();
 </script>
