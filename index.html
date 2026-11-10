@@ -526,7 +526,15 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     ['margarita','seven','hurricane'],
     ['oldfashioned','bar','cilantro'],
   ];
-  const save = () => store.set({ soundOn, session });
+  // Also mirror the game into the address bar: some browsers (private mode, in-app browsers)
+  // don't keep localStorage, and a refresh must still pick the game back up.
+  function syncUrl(){
+    try {
+      const q = session ? `?t=${encodeURIComponent(session.table)}&s=${encodeURIComponent(session.id)}&c=${session.coins}&n=${session.spins}` : location.search;
+      if (q !== location.search) history.replaceState(null, '', location.pathname + q);
+    } catch {}
+  }
+  const save = () => { store.set({ soundOn, session }); syncUrl(); };
 
   // ---------- build reels ----------
   const reelsEl = $('reels');
@@ -884,8 +892,26 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     if (status === '게임 중') infoCard(`테이블 ${esc(tableNo)}는 지금 게임 중이에요`, `${esc(name || '다른 분')} 님이 먼저 시작했어요.<br>테이블당 한 번만 참여할 수 있어요.`);
     else infoCard('이 테이블은 이미 참여했어요', '테이블당 한 번만 참여할 수 있어요.<br>다음 방문 때 또 만나요!');
   }
+  // rebuild the game from the address bar + the sheet when this browser kept nothing
+  async function restoreFromUrl(){
+    const q = new URLSearchParams(location.search), sid = q.get('s');
+    if (session || !sid || !tableNo) return;
+    try {
+      const r = await apiGet({ action:'table', table: tableNo, session: sid });
+      if (!r.ok || !r.mine) return;
+      prizes = Object.assign({}, PRIZE_DEFAULTS, r.prizes || {});
+      const idOf = name => PRIZE_IDS.find(id => prizes[id] === name) || 'cilantro';
+      session = { table: tableNo, id: sid, name: r.name, prizes: r.prizes || {},
+                  coins: Math.max(0, Math.min(99, parseInt(q.get('c'), 10) || 0)), spins: parseInt(q.get('n'), 10) || 0,
+                  won: (r.coupons || []).map(c => ({ id: idOf(c.prize), code: String(c.code), prize: c.prize, served: !!c.served })),
+                  ops: [], started: Date.now(), ended: r.status !== '게임 중' };
+      buildPaytable(); save(); updateUI();
+    } catch {}
+  }
   async function checkTable(){
     if (!API) return infoCard('준비 중이에요', '사장님이 연결 설정을 마치면 게임할 수 있어요.');
+    await restoreFromUrl();
+    if (session && session.ended && session.table === tableNo && new URLSearchParams(location.search).get('s') === session.id) return renderResult();
     if (session && !session.ended) { setMessage(`남은 코인 ${session.coins}개. SPIN을 눌러 계속하세요.`); flush(); return; }
     if (!tableNo) {
       if (session) return renderResult();
