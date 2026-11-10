@@ -92,6 +92,7 @@ ol.how{margin:0;padding-left:20px;color:#ead9b2;display:grid;gap:4px}
 .prize-row button{min-height:40px;border-radius:20px;border:0;padding:0 14px;font:700 14px var(--f-body);cursor:pointer;background:#8f1d27;color:#fff3dc}
 .prize-row.served b,.prize-row.served code{text-decoration:line-through;color:#9a8c6c}
 .prize-row.served button{background:#d9ccad;color:#5a4a2a}
+.prize-row button:disabled{opacity:.6;cursor:default}
 .reset{margin-top:auto;min-height:42px;border-radius:21px;border:1.5px solid #b9a679;background:transparent;color:#5a4a2a;font:700 14px var(--f-body);cursor:pointer}
 .reset.arm{background:#5a4a2a;color:#fff3dc;border-color:#5a4a2a}
 .orphans{display:grid;gap:8px}
@@ -247,16 +248,40 @@ header h1{letter-spacing:.02em}
   const hhmm = t => t ? new Date(t).toLocaleTimeString('ko-KR', { hour:'numeric', minute:'2-digit' }) : '';
   const startOfToday = () => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); };
   let armed = null;   // two-tap confirm for resets: {id, until}
-  function render(r){
-    if (!r) return;
-    state = r;
+  // What the owner just pressed shows at once, before the sheet answers (it takes a few seconds),
+  // and a poll that started earlier can't flip it back. Each intent ends when the sheet agrees or after 15 s.
+  const intents = { coupons:{}, tables:{} };
+  function applyIntents(r){
+    const now = Date.now();
+    const coupons = r.coupons.map(c => {
+      const i = intents.coupons[c.code]; if (!i) return c;
+      if (!i.busy && (c.served === i.served || now - i.at > 15000)) { delete intents.coupons[c.code]; return c; }
+      return Object.assign({}, c, { served: i.served, busy: i.busy });
+    });
+    const tables = r.tables.map(t => {
+      const i = intents.tables[t.no]; if (!i) return t;
+      if (!i.busy && (t.status === '게임 가능' || now - i.at > 15000)) { delete intents.tables[t.no]; return t; }
+      return Object.assign({}, t, { status:'게임 가능', name:'', session:'', spins:0, busy: i.busy });
+    });
+    return Object.assign({}, r, { coupons, tables });
+  }
+  let lastSig = '';
+  function render(raw){
+    if (!raw) return;
+    state = raw;
+    const r = applyIntents(raw);
+    // rebuild the tiles only when something changed, so a button never swaps out from under a finger
+    const allArmed = armed && armed.id === 'all' && armed.until > Date.now();
+    const sig = JSON.stringify([r.tables, r.coupons, r.entriesToday, armed && armed.until > Date.now() ? armed.id : '']);
+    if (sig === lastSig) return;
+    lastSig = sig;
     const curSessions = new Set(r.tables.map(t => t.session).filter(Boolean));
     const pend = r.coupons.filter(c => !c.served);
     $('kPending').textContent = pend.length;
     $('kPlaying').textContent = r.tables.filter(t => t.status === '게임 중').length;
     $('kVisits').textContent = r.entriesToday;
     $('kPrizes').textContent = r.coupons.filter(c => c.time >= startOfToday()).length;
-    const row = c => `<div class="prize-row ${c.served ? 'served' : ''}"><b>${esc(c.prize)}</b><code>#${esc(c.code)}</code><button data-code="${esc(c.code)}" data-undo="${c.served ? 1 : ''}">${c.served ? '취소' : '지급'}</button></div>`;
+    const row = c => `<div class="prize-row ${c.served ? 'served' : ''}"><b>${esc(c.prize)}</b><code>#${esc(c.code)}</code><button data-code="${esc(c.code)}" data-undo="${c.served ? 1 : ''}" ${c.busy ? 'disabled' : ''}>${c.busy ? '처리 중…' : c.served ? '취소' : '지급'}</button></div>`;
     $('tables').innerHTML = r.tables.map(t => {
       const cs = r.coupons.filter(c => t.session && c.session === t.session);
       const cls = CLS[t.status] || 'free';
@@ -272,7 +297,6 @@ header h1{letter-spacing:.02em}
     const orphans = pend.filter(c => !curSessions.has(c.session));
     $('orphanBox').hidden = !orphans.length;
     $('orphans').innerHTML = orphans.map(c => `<div class="orphan">테이블 ${esc(c.table)} · ${esc(c.name)} · ${hhmm(c.time)}${row(c)}</div>`).join('');
-    const allArmed = armed && armed.id === 'all' && armed.until > Date.now();
     $('resetAll').textContent = allArmed ? '한 번 더 누르면 전체를 비워요' : '전체 테이블 비우기';
   }
 
@@ -280,13 +304,17 @@ header h1{letter-spacing:.02em}
   document.addEventListener('click', async e => {
     const serveBtn = e.target.closest('.prize-row button');
     if (serveBtn) {
-      serveBtn.disabled = true;
       const code = serveBtn.dataset.code, undo = !!serveBtn.dataset.undo;
+      if (intents.coupons[code] && intents.coupons[code].busy) return;
+      intents.coupons[code] = { served: !undo, at: Date.now(), busy: true };
+      render(state);
       const r = await apiPost({ action:'serve', code, undo }).catch(() => null);
+      if (r && r.ok) { intents.coupons[code] = { served: !undo, at: Date.now(), busy: false }; render(state); return refresh(); }
+      // refused: the other device may have done it a moment earlier — that's fine, not an error
+      delete intents.coupons[code];
       await refresh();
-      // the other device may have served it a moment earlier: that's fine, not an error
       const c = state && state.coupons.find(x => x.code === code);
-      if ((!r || !r.ok) && !(c && c.served === !undo)) alertLine('지급 처리가 안 됐어요. 다시 눌러 주세요.');
+      if (!(c && c.served === !undo)) alertLine('지급 처리가 안 됐어요. 다시 눌러 주세요.');
       return;
     }
     const resetBtn = e.target.closest('[data-reset]');
@@ -296,9 +324,13 @@ header h1{letter-spacing:.02em}
   async function armOrRun(id){
     if (!(armed && armed.id === id && armed.until > Date.now())) { armed = { id, until: Date.now() + 3000 }; render(state); setTimeout(() => render(state), 3100); return; }
     armed = null;
+    const ids = id === 'all' ? state.tables.map(t => t.no) : [id];
+    ids.forEach(no => intents.tables[no] = { at: Date.now(), busy: true });
+    render(state);
     const r = await apiPost({ action:'reset', table: id }).catch(() => null);
+    ids.forEach(no => { if (r && r.ok) intents.tables[no] = { at: Date.now(), busy: false }; else delete intents.tables[no]; });
     if (!r || !r.ok) alertLine('테이블을 비우지 못했어요. 다시 눌러 주세요.');
-    refresh();
+    render(state); refresh();
   }
   function alertLine(t){ $('live').className = 'live off'; $('live').textContent = t; }
 
