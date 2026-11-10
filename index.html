@@ -25,7 +25,8 @@ body{margin:0}
   --f-display:"Limelight","Didot","Bodoni 72",Georgia,serif;
   --f-body:"Gowun Dodum","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
   --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
-  --cell:clamp(76px,23vw,118px);
+  /* reel cell: limited by width and, on phones, by the visible height so SPIN stays on the first screen */
+  --cell:clamp(60px,min(23vw,calc((100vh - 330px) / 3)),118px);
   color-scheme:dark;
 }
 html,body{min-height:100%}
@@ -195,6 +196,23 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
 
 @media (prefers-reduced-motion:reduce){
   .cell.win::before{animation:none}
+}
+@supports (height:100dvh){:root{--cell:clamp(60px,min(23vw,calc((100dvh - 330px) / 3)),118px)}}
+@media (max-width:560px){
+  body{padding-block:10px 32px}
+  .machine{padding:10px;border-radius:22px 22px 12px 12px}
+  .marquee{padding:8px 10px 7px}
+  .marquee h1{font-size:clamp(22px,6.4vw,30px)}
+  .marquee p{font-size:10px;letter-spacing:.2em;margin-top:0}
+  .bulbs{margin-top:5px}
+  .bulbs i{width:6px;height:6px}
+  .window{margin-top:10px}
+  .readout{margin-top:10px;gap:5px}
+  .lcd{padding:4px 6px}
+  .lcd small{font-size:10px}
+  .message{margin-top:8px;min-height:2.6em;padding:6px 10px;font-size:13px}
+  .controls{margin-top:10px}
+  .spin{height:52px}
 }
 </style>
 </head>
@@ -474,6 +492,9 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
 <script src="vendor/three.min.js"></script>
 <script>
 (() => {
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  window.scrollTo(0, 0);
+  window.addEventListener('pageshow', () => window.scrollTo(0, 0));
   // Symbol weights are the tuned set from the casino version (kept as asked).
   // Simulated 200k visits with these rules: ~23 spins per visit (bonus coins included),
   // prizes per visit ≈ 고수 0.98 · 벨 0.42 · 골드 바 0.12 · 세븐 0.002; 24% of visits win nothing.
@@ -770,13 +791,14 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     }
     if (wins.length) {
       showWins(wins);
-      const lines = [
-        ...prizeWins.map(w => `${LINES[w.li].name} · <b>${esc(prizes[w.key])}</b> 당첨!`),
-        ...coinWins.map(w => `${LINES[w.li].name} · ${BY_ID[w.key].name} ×3 · 코인 +${COCKTAIL_BONUS}`),
-        ...(happy ? [`해피아워 · 코인 +${HAPPY_BONUS}`] : []),
-      ];
+      // at most two short lines, so the SPIN button never gets pushed down
+      const won = {}; prizeWins.forEach(w => won[w.key] = (won[w.key] || 0) + 1);
+      const prizeLine = Object.keys(won).map(k => `<b>${esc(prizes[k])}</b>${won[k] > 1 ? ' ×' + won[k] : ''}`).join(', ');
+      const coinLine = bonus ? `${happy && !coinWins.length ? '해피아워 · ' : ''}코인 +${bonus}` : '';
       const jackpot = prizeWins.some(w => w.key === 'seven');
-      setMessage((jackpot ? '잭팟! 세븐 세 개!<br>' : '') + lines.join('<br>') + (prizeWins.length ? '<br><small>게임이 끝나면 직원에게 화면을 보여 주세요</small>' : ''), prizeWins.length > 0);
+      setMessage(prizeWins.length
+        ? `${jackpot ? '잭팟! ' : ''}${prizeLine} 당첨!${coinLine ? ' · ' + coinLine : ''}<br><small>게임이 끝나면 직원에게 화면을 보여 주세요</small>`
+        : coinLine, prizeWins.length > 0);
       if (jackpot) { SFX.alarm(2.5); SFX.coins(40, .4); }
       else if (prizeWins.length) { SFX.alarm(1); SFX.coins(10, .3); }
       else { SFX.ding(); SFX.coins(bonus * 2); }
