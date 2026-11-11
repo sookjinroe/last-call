@@ -61,7 +61,16 @@ function doPost(e) {
 function sh_(name) { return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name); }
 function out_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 function ms_(d) { return d instanceof Date ? d.getTime() : (d ? (new Date(d).getTime() || 0) : 0); }
-function sid_() { return Utilities.getUuid().replace(/-/g, '').slice(0, 12); }
+// game ids start with a letter so the sheet can never read them as a number or a date
+function sid_() { return 's' + Utilities.getUuid().replace(/-/g, '').slice(0, 11); }
+// Write text exactly as typed: Sheets otherwise turns '007' into 7 and '3/4' into a date.
+function asText_(sheet, row, cols) { cols.forEach(function (c) { sheet.getRange(row, c).setNumberFormat('@'); }); }
+function appendText_(sheet, values, textCols) {
+  const row = sheet.getLastRow() + 1;
+  asText_(sheet, row, textCols);
+  sheet.getRange(row, 1, 1, values.length).setValues([values]);
+  return row;
+}
 function todayStart_() { return new Date(Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd') + 'T00:00:00+09:00').getTime(); }
 
 function settings_() {
@@ -95,6 +104,7 @@ function readTables_() {
     });
 }
 function writeTable_(t) {
+  asText_(sh_(SHEET.tables), t.row, [3, 4]);
   sh_(SHEET.tables).getRange(t.row, 2, 1, 6).setValues([[
     t.status, t.name, t.session,
     t.started ? new Date(t.started) : '', t.last ? new Date(t.last) : '', t.spins || '',
@@ -128,7 +138,7 @@ function effective_(t, cfg) {
   }
   return t;
 }
-function log_(table, name, text, session) { sh_(SHEET.log).appendRow([new Date(), table, name, text, session || '']); }
+function log_(table, name, text, session) { appendText_(sh_(SHEET.log), [new Date(), table, name, text, session || ''], [3, 4, 5]); }
 function push_(cfg, title, message, tags, priority) {
   if (!cfg.topic) return;
   try {
@@ -182,8 +192,8 @@ function prize_(b) {
   let code;
   do { code = String(1000 + Math.floor(Math.random() * 9000)); } while (used[code]);
   const s = sh_(SHEET.coupons);
-  s.appendRow([code, t.no, t.name, prize, new Date(), false, '', t.session]);
-  s.getRange(s.getLastRow(), 6).insertCheckboxes();
+  const row = appendText_(s, [code, t.no, t.name, prize, new Date(), false, '', t.session], [3, 4, 8]);
+  s.getRange(row, 6).insertCheckboxes();
   t.last = Date.now(); t.spins = Math.max(t.spins, Number(b.spins) || 0);
   writeTable_(t);
   log_(t.no, t.name, prize + ' 당첨 (쿠폰 ' + code + ')', t.session);

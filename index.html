@@ -152,6 +152,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
 .btn.primary{background:radial-gradient(ellipse at 50% 30%,#e04650,#8f1d27 75%);color:#fff3dc;box-shadow:0 4px 0 #4f0d13,0 0 0 2px var(--brass)}
 .btn.ghost{background:transparent;color:#e1c27c;box-shadow:inset 0 0 0 1px #6b5222}
 .btn:active{transform:translateY(2px)}
+.btn:disabled{opacity:.65;cursor:default;transform:none}
 .btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .pin-dots{display:flex;gap:14px;justify-content:center}
 .pin-dots i{width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--brass)}
@@ -831,10 +832,11 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
   async function apiGet(params){ const u = new URL(API); Object.keys(params).forEach(k => u.searchParams.set(k, params[k])); const r = await fetch(u); return r.json(); }
   // results are queued on the phone and sent in order, so a weak signal never loses a coupon
   function enqueue(op){ if (!session) return; session.ops = session.ops || []; session.ops.push(op); save(); flush(); }
-  let flushing = false, busy = false;
+  let flushing = false, busy = false, sendFailed = false;
   async function flush(){
     if (flushing || !session || !session.ops || !session.ops.length) return;
     flushing = true; busy = false;
+    if (!$('result').hidden && session.ended) renderResult();   // show "보내는 중…" on the button while it runs
     try {
       while (session && session.ops.length) {
         const op = session.ops[0];
@@ -847,7 +849,8 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
         }
         session.ops.shift(); save();   // other refusals (e.g. the owner reset the table) are dropped so nothing jams
       }
-    } catch { setTimeout(flush, busy ? 1500 : 5000); }   // 'busy' = the sheet was locked for a moment
+      sendFailed = false;
+    } catch { sendFailed = !busy; setTimeout(flush, busy ? 1500 : 5000); }   // 'busy' = the sheet was locked for a moment
     flushing = false;
     if (!$('result').hidden && session && session.ended) renderResult();
   }
@@ -876,6 +879,8 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
   // The end screen stays up (no close button): it tells the guest exactly what happens next
   // and follows each coupon until the staff marks it served on the owner console.
   let pollTimer = null;
+  const retryBlock = () => `<p class="sent fail">${sendFailed ? '연결이 안 돼요. 인터넷을 확인해 주세요.' : '잠시만요…'}</p>`
+    + `<button class="btn ghost" id="retry" ${flushing ? 'disabled' : ''}>${flushing ? '보내는 중…' : '다시 시도'}</button>`;
   function renderResult(){
     const card = $('resultCard');
     const sending = session.ops && session.ops.length;
@@ -892,7 +897,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
         <ul class="coupons">${session.won.map(c => `<li class="coupon${c.served ? ' served' : ''}"><span class="trio">${icon(c.id)}</span><b>${esc(prizeName(c))}</b>${
           c.served ? '<span class="code done">받음 ✓</span>'
           : c.code ? `<span class="code">#${esc(c.code)}</span>` : '<span class="code wait">발급 중…</span>'}</li>`).join('')}</ul>
-        ${sending ? `<p class="sent fail">잠시만요…</p><button class="btn ghost" id="retry">다시 시도</button>`
+        ${sending ? retryBlock()
           : ''}
         <p class="stamp">테이블 ${esc(session.table)} · ${esc(session.name)} · ${when} · ${session.spins}번 돌림</p>`;
     } else {
@@ -901,7 +906,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
         <p>다음 방문 때 또 만나요!</p>` : `
         <h3 class="small">이번엔 당첨이 없었어요</h3>
         <p>${session.spins}번 돌렸는데 아쉽게 빗나갔어요.<br>다음 방문 때 또 도전해 주세요.</p>
-        ${sending ? `<p class="sent fail">잠시만요…</p><button class="btn ghost" id="retry">다시 시도</button>` : ''}
+        ${sending ? retryBlock() : ''}
         <p class="stamp">테이블 ${esc(session.table)} · ${esc(session.name)} · ${when}</p>`;
     }
     const r = $('retry'); if (r) r.onclick = () => flush();
@@ -948,6 +953,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
   async function restoreFromUrl(){
     const q = new URLSearchParams(location.search), sid = q.get('s');
     if (session || !sid || !tableNo) return;
+    infoCard('잠시만요…', '');
     try {
       const r = await apiGet({ action:'table', table: tableNo, session: sid });
       if (!r.ok || !r.mine) return;
@@ -959,6 +965,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
                   ops: [], started: Date.now(), ended: r.status !== '게임 중' };
       buildPaytable(); save(); updateUI();
     } catch {}
+    hide('info');
   }
   async function checkTable(){
     if (!API) return infoCard('지금은 쉬는 중이에요', '조금 뒤에 다시 찾아 주세요.');
@@ -990,11 +997,12 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     e.preventDefault();
     const name = $('nick').value.trim();
     if (!name) { $('joinErr').textContent = '닉네임을 적어 주세요.'; return; }
-    $('joinBtn').disabled = true; $('joinErr').textContent = '';
+    $('joinBtn').disabled = true; $('joinBtn').textContent = '시작하는 중…'; $('joinErr').textContent = '';
     let r;
     try { r = await apiPost({ action:'join', table: tableNo, name }); }
-    catch { $('joinBtn').disabled = false; $('joinErr').textContent = '연결이 안 돼요. 다시 눌러 주세요.'; return; }
-    $('joinBtn').disabled = false;
+    catch { r = null; }
+    finally { $('joinBtn').disabled = false; $('joinBtn').textContent = '코인 받고 시작하기'; }
+    if (!r) { $('joinErr').textContent = '연결이 안 돼요. 다시 눌러 주세요.'; return; }
     if (!r.ok) {
       if (r.reason) { hide('join'); return refuse(r.reason, r.name); }
       $('joinErr').textContent = r.error === 'busy' ? '잠시 후 다시 눌러 주세요.' : '시작하지 못했어요. 직원에게 말씀해 주세요.';

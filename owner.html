@@ -86,6 +86,8 @@ ol.how{margin:0;padding-left:20px;color:#ead9b2;display:grid;gap:4px}
 .t-who{font-size:17px;font-weight:700}
 .t-meta{font:500 13px var(--f-num);color:#6b5a3a}
 .t-empty{color:#6b5a3a;font-size:14px}
+.t-rows{display:grid;gap:10px}
+.t-rows:empty{display:none}
 .prize-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;border-top:1px dashed #cdbf9e;padding-top:8px}
 .prize-row b{font-size:16px}
 .prize-row code{font:600 15px var(--f-num);color:#8f1d27}
@@ -219,13 +221,13 @@ header h1{letter-spacing:.02em}
   }
   $('keyBtn').onclick = async () => {
     const k = $('keyInput').value.trim(); if (!k) return;
-    $('keyBtn').disabled = true; $('keyErr').textContent = '';
+    $('keyBtn').disabled = true; $('keyBtn').textContent = '연결하는 중…'; $('keyErr').textContent = '';
     try {
       const r = await apiGet({ action:'state', key:k });
       if (!r.ok) { $('keyErr').textContent = '관리키가 맞지 않아요. 시트의 설정 탭을 다시 확인해 주세요.'; return; }
       S.key = k; save(); showMain(); render(r);
     } catch { $('keyErr').textContent = '시트에 연결하지 못했어요. 인터넷과 배포 설정을 확인해 주세요.'; }
-    finally { $('keyBtn').disabled = false; }
+    finally { $('keyBtn').disabled = false; $('keyBtn').textContent = '연결하기'; }
   };
 
   // ---------- polling ----------
@@ -265,6 +267,26 @@ header h1{letter-spacing:.02em}
     });
     return Object.assign({}, r, { coupons, tables });
   }
+  // Replace only the cards whose content changed; untouched cards (and their buttons) stay the same DOM nodes.
+  const htmlOf = new WeakMap();
+  function patch(box, items){
+    [...box.children].forEach(el => { if (!el.dataset.key) el.remove(); });   // drop the loading placeholder
+    const old = new Map([...box.children].map(el => [el.dataset.key, el]));
+    let prev = null;
+    items.forEach(({ key, html }) => {
+      let el = old.get(key);
+      if (!el || htmlOf.get(el) !== html) {
+        const tmp = document.createElement('div'); tmp.innerHTML = html.trim();
+        const fresh = tmp.firstElementChild; fresh.dataset.key = key; htmlOf.set(fresh, html);
+        if (el) el.replaceWith(fresh);
+        el = fresh;
+      }
+      const want = prev ? prev.nextElementSibling : box.firstElementChild;
+      if (el !== want) box.insertBefore(el, want);
+      old.delete(key); prev = el;
+    });
+    old.forEach(el => el.remove());
+  }
   let lastSig = '';
   function render(raw){
     if (!raw) return;
@@ -273,7 +295,7 @@ header h1{letter-spacing:.02em}
     // rebuild the tiles only when something changed, so a button never swaps out from under a finger
     const allArmed = armed && armed.id === 'all' && armed.until > Date.now();
     const sig = JSON.stringify([r.tables, r.coupons, r.entriesToday, armed && armed.until > Date.now() ? armed.id : '']);
-    if (sig === lastSig) return;
+    if (sig === lastSig) return;   // (patch() below still keeps unchanged cards untouched)
     lastSig = sig;
     const curSessions = new Set(r.tables.map(t => t.session).filter(Boolean));
     const pend = r.coupons.filter(c => !c.served);
@@ -282,21 +304,28 @@ header h1{letter-spacing:.02em}
     $('kVisits').textContent = r.entriesToday;
     $('kPrizes').textContent = r.coupons.filter(c => c.time >= startOfToday()).length;
     const row = c => `<div class="prize-row ${c.served ? 'served' : ''}"><b>${esc(c.prize)}</b><code>#${esc(c.code)}</code><button data-code="${esc(c.code)}" data-undo="${c.served ? 1 : ''}" ${c.busy ? 'disabled' : ''}>${c.busy ? '처리 중…' : c.served ? '취소' : '지급'}</button></div>`;
-    $('tables').innerHTML = r.tables.map(t => {
-      const cs = r.coupons.filter(c => t.session && c.session === t.session);
+    patch($('tables'), r.tables.map(t => {
       const cls = CLS[t.status] || 'free';
       const isArmed = armed && armed.id === t.no && armed.until > Date.now();
-      return `<article class="tile ${cls}" data-no="${esc(t.no)}">
+      return { key: 't' + t.no, html: `<article class="tile ${cls}" data-no="${esc(t.no)}">
         <div class="t-head"><span class="t-no">${esc(t.no)}<small>번</small></span><span class="pill ${cls}">${esc(t.status)}</span></div>
         ${t.status === '게임 가능' ? '<div class="t-empty">손님이 QR을 찍으면 바로 시작돼요.</div>'
-          : `<div class="t-who">${esc(t.name)}</div><div class="t-meta">${hhmm(t.started)} 입장 · ${t.spins || 0}번 돌림</div>`}
-        ${cs.map(row).join('')}
+          : `<div class="t-who">${esc(t.name)}</div><div class="t-meta">${hhmm(t.started)} 입장 · <span class="t-spins"></span>번 돌림</div>`}
+        <div class="t-rows"></div>
         ${t.status !== '게임 가능' ? `<button class="reset ${isArmed ? 'arm' : ''}" data-reset="${esc(t.no)}">${isArmed ? '한 번 더 누르면 비워요' : '새 손님 받기 (테이블 비우기)'}</button>` : ''}
-      </article>`;
-    }).join('');
+      </article>` };
+    }));
+    // inside each card: coupon rows are patched one by one, the spin counter is plain text,
+    // so pressing one coupon never rebuilds the card (or the other coupons) around the finger
+    r.tables.forEach(t => {
+      const tile = document.querySelector(`.tile[data-no="${CSS.escape(String(t.no))}"]`); if (!tile) return;
+      const sp = tile.querySelector('.t-spins'); if (sp) sp.textContent = t.spins || 0;
+      const rows = tile.querySelector('.t-rows');
+      if (rows) patch(rows, r.coupons.filter(c => t.session && c.session === t.session).map(c => ({ key: 'c' + c.code, html: row(c) })));
+    });
     const orphans = pend.filter(c => !curSessions.has(c.session));
     $('orphanBox').hidden = !orphans.length;
-    $('orphans').innerHTML = orphans.map(c => `<div class="orphan">테이블 ${esc(c.table)} · ${esc(c.name)} · ${hhmm(c.time)}${row(c)}</div>`).join('');
+    patch($('orphans'), orphans.map(c => ({ key: 'c' + c.code, html: `<div class="orphan">테이블 ${esc(c.table)} · ${esc(c.name)} · ${hhmm(c.time)}${row(c)}</div>` })));
     $('resetAll').textContent = allArmed ? '한 번 더 누르면 전체를 비워요' : '전체 테이블 비우기';
   }
 
@@ -437,7 +466,9 @@ header h1{letter-spacing:.02em}
       <button class="btn primary" id="back">테이블 화면으로</button>`;
     $('savePrizes').onclick = async () => {
       const prizes = {}; PRIZE_IDS.forEach(id => { const v = $('p-'+id).value.trim(); if (v) prizes[id] = v; });
+      $('savePrizes').disabled = true; $('savePrizes').textContent = '저장하는 중…';
       const r = await apiPost({ action:'prizes', prizes }).catch(() => null);
+      $('savePrizes').disabled = false; $('savePrizes').textContent = '경품 저장';
       $('prizeMsg').className = r && r.ok ? 'ok' : 'err';
       $('prizeMsg').textContent = r && r.ok ? '저장했어요. 손님 화면에 바로 반영돼요.' : '저장하지 못했어요. 다시 눌러 주세요.';
       if (r && r.ok && state) state.prizes = r.prizes;
@@ -448,7 +479,9 @@ header h1{letter-spacing:.02em}
     };
     $('testBtn').onclick = async () => {
       $('testMsg').className = 'note'; $('testMsg').textContent = '보내는 중…';
+      $('testBtn').disabled = true;
       const r = await apiPost({ action:'test' }).catch(() => null);
+      $('testBtn').disabled = false;
       $('testMsg').className = r && r.ok ? 'ok' : 'err';
       $('testMsg').textContent = r && r.ok ? '보냈어요. 폰에 알림이 왔는지 확인해 주세요.' : '보내지 못했어요. 다시 눌러 주세요.';
     };
@@ -457,7 +490,11 @@ header h1{letter-spacing:.02em}
     $('back').onclick = showMain;
   }
 
-  function showMain(){ $('setup').hidden = true; $('settings').hidden = true; $('main').hidden = false; updateSoundBanner(); if (!timer) start(); }
+  function showMain(){
+    $('setup').hidden = true; $('settings').hidden = true; $('main').hidden = false; updateSoundBanner();
+    if (!state) $('tables').innerHTML = '<p class="empty">테이블 불러오는 중…</p>';
+    if (!timer) start();
+  }
 
   // ---------- boot ----------
   // The sheet's '사장님 화면 열기' link carries the admin key once; keep it on this device and drop it from the address bar.
@@ -465,6 +502,7 @@ header h1{letter-spacing:.02em}
   if (linkKey) {
     try { history.replaceState(null, '', location.pathname); } catch {}
     if (API) {
+      $('main').hidden = false; $('tables').innerHTML = '<p class="empty">연결하는 중…</p>';
       apiGet({ action:'state', key: linkKey.trim() })
         .then(r => { if (r.ok) { S.key = linkKey.trim(); save(); showMain(); render(r); } else showSetup('링크의 관리키가 맞지 않아요. 시트의 설정 탭에서 링크를 다시 눌러 주세요.'); })
         .catch(() => showSetup('시트에 연결하지 못했어요. 인터넷을 확인하고 링크를 다시 눌러 주세요.'));
