@@ -230,6 +230,26 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
 .table-badge b{font-weight:400;font-size:40px}
 .keypad button{font-weight:400;font-size:30px}
 @media (max-width:560px){.marquee h1{font-size:clamp(24px,7.6vw,34px)}.lcd b{font-size:clamp(22px,6.6vw,28px)}}
+/* ---------- modes ---------- */
+/* trial keeps the same machine but moves the room to cool ink-blue with silver trim: nobody mistakes it for the real game */
+body.mode-trial{background:radial-gradient(ellipse at 50% -10%,#2b3d57 0%,transparent 60%),repeating-linear-gradient(90deg,transparent 0 46px,rgba(0,0,0,.08) 46px 48px),#141f30}
+body.mode-trial .machine{background:linear-gradient(180deg,#2a2f38,#171a20);box-shadow:0 0 0 2px #7d8796,0 0 0 5px #0d1016,0 24px 60px rgba(0,0,0,.55)}
+body.mode-trial .marquee{background:linear-gradient(180deg,#24395a,#162540);box-shadow:inset 0 0 0 2px #9aa6b8}
+body.mode-trial .marquee h1{color:#cfe3ff;text-shadow:0 0 12px rgba(150,190,255,.55),0 2px 0 #162540}
+body.mode-trial .spin{background:radial-gradient(ellipse at 50% 30%,#4f7bbf,#24467e 75%);box-shadow:0 4px 0 #142a52,0 0 0 2px #9aa6b8,0 8px 18px rgba(0,0,0,.4)}
+.mode-tag{display:inline-block;margin-top:4px;padding:2px 10px;border-radius:999px;font:400 12px "Song Myung",var(--f-body);letter-spacing:.12em}
+.mode-tag.real{background:#caa452;color:#2c1d05}
+.mode-tag.trial{background:#9aa6b8;color:#141f30}
+.modes{display:grid;gap:12px}
+.mode-btn{display:grid;gap:2px;text-align:left;padding:16px 18px;border-radius:18px;border:0;cursor:pointer;font:inherit}
+.mode-btn b{font:400 26px var(--f-display);letter-spacing:.04em}
+.mode-btn span{font:400 14px "Song Myung",var(--f-body)}
+.mode-btn.trial{background:linear-gradient(180deg,#2c4468,#1a2b47);color:#dbe8ff;box-shadow:0 0 0 2px #9aa6b8}
+.mode-btn.real{background:radial-gradient(ellipse at 30% 20%,#e04650,#8f1d27 75%);color:#fff3dc;box-shadow:0 0 0 2px var(--brass)}
+.mode-btn:active{transform:translateY(2px)}
+.result-date{font:400 30px "Song Myung",var(--f-body);color:#fff1cc;letter-spacing:.02em}
+.result-date small{display:block;font-size:13px;color:#a98d55;letter-spacing:.2em}
+.link-btn{background:none;border:0;color:#c7ad78;font:14px var(--f-body);text-decoration:underline;cursor:pointer;padding:6px}
 </style>
 </head>
 <body>
@@ -434,6 +454,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     <div class="marquee">
       <h1>LAST CALL</h1>
       <p>Cocktail Slots · 3×3</p>
+      <span class="mode-tag" id="modeTag" hidden></span>
       <div class="bulbs" id="bulbs"></div>
     </div>
 
@@ -448,21 +469,21 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
       <div class="lcd win"><small>당첨 경품</small><b id="prizeCount">0</b></div>
     </div>
 
-    <div class="message" id="message" aria-live="polite">테이블 QR을 찍어 입장해 주세요.</div>
+    <div class="message" id="message" aria-live="polite">모드를 골라 주세요.</div>
 
     <div class="controls">
       <button class="spin" id="spin">SPIN</button>
       <button class="mute" id="mute" aria-label="소리 끄기" title="소리"></button>
     </div>
     <button class="refill" id="endBtn" hidden>게임 종료하기</button>
-    <p class="hint" id="who">코인 1개로 한 번 돌려요 · 5줄을 모두 봅니다</p>
+    <p class="hint">코인 1개로 한 번 돌려요 · 5줄을 모두 봅니다</p>
   </section>
 
   <aside class="side">
     <h2>Prizes</h2>
     <p class="sub">무료 코인 <b>10개</b>. 같은 그림 3개면 경품, 칵테일이 맞으면 코인이 더 나와요.</p>
 
-    <div class="group-label"><span>경품</span><span>당첨 시</span></div>
+    <div class="group-label"><span>당첨</span><span>등수</span></div>
     <ul class="pay" id="payClassic"></ul>
 
     <div class="group-label"><span>보너스 코인</span><span>당첨 시</span></div>
@@ -474,29 +495,33 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     <ul class="rules">
       <li>여러 줄이 동시에 맞으면 모두 받아요.</li>
       <li>해피아워 코인은 한 번 돌릴 때 최대 1개예요.</li>
-      <li>테이블당 한 번만 참여할 수 있어요.</li>
-      <li>게임이 끝나면 결과 화면을 직원에게 보여 주세요. 술 경품은 성인만 받을 수 있어요.</li>
+      <li>트라이얼은 연습 게임이에요. 경품은 리얼에서만 드려요.</li>
+      <li>리얼이 끝나면 결과 화면을 직원에게 보여 주세요.</li>
       <li>코인은 팔거나 다른 것으로 바꿔 드리지 않아요.</li>
     </ul>
   </aside>
 </div>
 
-<!-- entry: nickname (the table comes from the QR sticker) -->
-<div class="overlay" id="join" hidden>
-  <form class="card" id="joinForm" novalidate>
+<!-- first screen: pick a mode -->
+<div class="overlay" id="modes" hidden>
+  <div class="card">
     <h3>LAST CALL</h3>
-    <p class="table-badge">테이블 <b id="joinTable"></b></p>
-    <p>무료 코인 <b>10개</b>로 슬롯을 돌려 보세요.<br>같은 그림 3개면 메뉴 경품을 드려요.</p>
-    <label class="field col"><span>닉네임</span><input id="nick" maxlength="10" autocomplete="off" placeholder="예: 광은" required></label>
-    <p class="pin-err" id="joinErr" aria-live="assertive"></p>
-    <button class="btn primary" type="submit" id="joinBtn">코인 받고 시작하기</button>
-    <p class="note">테이블당 한 번</p>
-  </form>
+    <p>무료 코인 <b>10개</b>로 한 판!</p>
+    <div class="modes">
+      <button class="mode-btn trial" id="goTrial"><b>TRIAL</b><span>트라이얼 · 연습 게임</span></button>
+      <button class="mode-btn real" id="goReal"><b>REAL</b><span>리얼 · 사장님 PIN</span></button>
+    </div>
+  </div>
 </div>
 
-<!-- notices: no QR / expired QR / finished -->
-<div class="overlay" id="info" hidden>
-  <div class="card" id="infoCard"></div>
+<!-- owner PIN, typed by the owner on the guest's phone -->
+<div class="overlay" id="pinModal" hidden>
+  <div class="card">
+    <h3 class="small" id="pinTitle">사장님 PIN</h3>
+    <div class="pin-dots" id="pinDots"><i></i><i></i><i></i><i></i></div>
+    <p class="pin-err" id="pinErr" aria-live="assertive"></p>
+    <div class="keypad" id="keypad"></div>
+  </div>
 </div>
 
 <!-- result / end-of-game -->
@@ -526,7 +551,8 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
   ];
   const BY_ID = Object.fromEntries(SYMBOLS.map(s => [s.id, s]));
   const PRIZE_IDS = ['seven','bar','bell','cilantro'];
-  const PRIZE_DEFAULTS = { seven:'시그니처 칵테일 1잔', bar:'고량주 1병', bell:'하이볼 1잔', cilantro:'군만두' };
+  const CFG = window.LASTCALL || {};
+  const PRIZE_DEFAULTS = Object.assign({ seven:'1등', bar:'2등', bell:'3등', cilantro:'4등' }, CFG.prizes || {});
   const START_COINS = 10, COCKTAIL_BONUS = 3, HAPPY_BONUS = 1;
   const LINES = [
     { name:'윗줄',      cells:[[0,0],[1,0],[2,0]] },
@@ -547,31 +573,23 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
   const pick = () => { let r = Math.random()*totalWeight; for (const s of SYMBOLS){ if((r-=s.weight)<0) return s.id; } return SYMBOLS[0].id; };
 
   // ---------- state (kept on this phone) ----------
-  const KEY = 'lastcall-guest-v2';
+  const KEY = 'lastcall-guest-v3';
   const store = {
     get(){ try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } },
     set(v){ try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} }
   };
   const saved = store.get() || {};
   let soundOn = saved.soundOn !== false;
-  // session: {table, id, name, prizes, coins, spins, won:[{id,uid,code,prize}], ops:[queued sheet calls], started, ended}
+  // session: {mode:'trial'|'real', coins, spins, won:[symbol id], started, ended}
   let session = saved.session && Number.isFinite(saved.session.coins) ? saved.session : null;
-  let prizes = Object.assign({}, PRIZE_DEFAULTS, session ? session.prizes : {});
+  const prizes = Object.assign({}, PRIZE_DEFAULTS);
   let spinning = false;
   let grid = [
     ['cilantro','martini','bell'],
     ['margarita','seven','hurricane'],
     ['oldfashioned','bar','cilantro'],
   ];
-  // Also mirror the game into the address bar: some browsers (private mode, in-app browsers)
-  // don't keep localStorage, and a refresh must still pick the game back up.
-  function syncUrl(){
-    try {
-      const q = session ? `?t=${encodeURIComponent(session.table)}&s=${encodeURIComponent(session.id)}&c=${session.coins}&n=${session.spins}` : location.search;
-      if (q !== location.search) history.replaceState(null, '', location.pathname + q);
-    } catch {}
-  }
-  const save = () => { store.set({ soundOn, session }); syncUrl(); };
+  const save = () => store.set({ soundOn, session });
 
   // ---------- build reels ----------
   const reelsEl = $('reels');
@@ -707,13 +725,21 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
   };
 
   // ---------- UI ----------
+  function applyMode(){
+    const m = session && session.mode;
+    document.body.classList.toggle('mode-trial', m === 'trial');
+    const tag = $('modeTag');
+    tag.hidden = !m;
+    if (m) { tag.className = 'mode-tag ' + m; tag.textContent = m === 'trial' ? 'TRIAL · 연습' : 'REAL'; }
+  }
   function updateUI(){
     $('coins').textContent = session ? session.coins : 0;
     $('spins').textContent = session ? session.spins : 0;
     $('prizeCount').textContent = session ? session.won.length : 0;
-    $('who').textContent = session ? `테이블 ${session.table} · ${session.name}` : '코인 1개로 한 번 돌려요 · 5줄을 모두 봅니다';
     $('spin').disabled = spinning || !session || session.ended || session.coins < 1;
     $('endBtn').hidden = !session || session.ended || spinning;
+    $('endBtn').textContent = session && session.mode === 'trial' ? '그만하기' : '게임 종료하기';
+    applyMode();
   }
   function setMessage(html, big=false){ const m=$('message'); m.innerHTML=`<span>${html}</span>`; m.classList.toggle('big', big); }
   function clearWins(){
@@ -798,12 +824,7 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     spinning = false;
     if (session) {
       session.coins += bonus;
-      prizeWins.forEach(w => {
-        const c = { id: w.key, uid: crypto.getRandomValues(new Uint32Array(2)).join('-'), code: '' };
-        session.won.push(c);
-        enqueue({ action:'prize', symbol: w.key, uid: c.uid });   // the sheet issues the coupon number
-      });
-      if (!prizeWins.length) enqueue({ action:'spin' });            // keeps the table's '마지막 활동' fresh
+      prizeWins.forEach(w => session.won.push(w.key));
     }
     if (wins.length) {
       showWins(wins);
@@ -812,8 +833,9 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
       const prizeLine = Object.keys(won).map(k => `<b>${esc(prizes[k])}</b>${won[k] > 1 ? ' ×' + won[k] : ''}`).join(', ');
       const coinLine = bonus ? `${happy && !coinWins.length ? '해피아워 · ' : ''}코인 +${bonus}` : '';
       const jackpot = prizeWins.some(w => w.key === 'seven');
+      const trial = session && session.mode === 'trial';
       setMessage(prizeWins.length
-        ? `${jackpot ? '잭팟! ' : ''}${prizeLine} 당첨!${coinLine ? ' · ' + coinLine : ''}<br><small>게임이 끝나면 직원에게 화면을 보여 주세요</small>`
+        ? `${jackpot ? '잭팟! ' : ''}${prizeLine} 당첨!${coinLine ? ' · ' + coinLine : ''}<br><small>${trial ? '연습 게임 · 경품 없음' : '게임이 끝나면 직원에게 화면을 보여 주세요'}</small>`
         : coinLine, prizeWins.length > 0);
       if (jackpot) { SFX.alarm(2.5); SFX.coins(40, .4); }
       else if (prizeWins.length) { SFX.alarm(1); SFX.coins(10, .3); }
@@ -826,106 +848,62 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     if (session && session.coins < 1) setTimeout(() => endSession(), 1800);
   }
 
-  // ---------- talking to the store's Google Sheet (Apps Script web app) ----------
-  const API = String(window.LASTCALL_API || '').trim();
-  async function apiPost(body){ const r = await fetch(API, { method:'POST', body: JSON.stringify(body) }); return r.json(); }
-  async function apiGet(params){ const u = new URL(API); Object.keys(params).forEach(k => u.searchParams.set(k, params[k])); const r = await fetch(u); return r.json(); }
-  // results are queued on the phone and sent in order, so a weak signal never loses a coupon
-  function enqueue(op){ if (!session) return; session.ops = session.ops || []; session.ops.push(op); save(); flush(); }
-  let flushing = false, busy = false, sendFailed = false;
-  async function flush(){
-    if (flushing || !session || !session.ops || !session.ops.length) return;
-    flushing = true; busy = false;
-    if (!$('result').hidden && session.ended) renderResult();   // show "보내는 중…" on the button while it runs
-    try {
-      while (session && session.ops.length) {
-        const op = session.ops[0];
-        const res = await apiPost(Object.assign({ table: session.table, session: session.id, spins: session.spins }, op));
-        if (!res.ok && res.error === 'busy') { busy = true; throw new Error('busy'); }
-        if (!res.ok && /지금 게임이 아니에요/.test(res.error || '')) { cutSession(); break; }   // the owner cleared this table
-        if (op.action === 'prize' && res.ok) {
-          const c = session.won.find(x => x.uid === op.uid);
-          if (c) { c.code = res.code; c.prize = res.prize; }
-        }
-        session.ops.shift(); save();   // other refusals (e.g. the owner reset the table) are dropped so nothing jams
-      }
-      sendFailed = false;
-    } catch { sendFailed = !busy; setTimeout(flush, busy ? 1500 : 5000); }   // 'busy' = the sheet was locked for a moment
-    flushing = false;
-    if (!$('result').hidden && session && session.ended) renderResult();
+  // ---------- starting a game ----------
+  function startGame(mode){
+    session = { mode, coins: START_COINS, spins: 0, won: [], started: Date.now(), ended: false };
+    save(); hide('modes'); hide('result'); clearWins(); updateUI();
+    SFX.coins(10, 0);
+    setMessage(`코인 ${START_COINS}개! SPIN을 눌러 시작하세요.`);
+    window.scrollTo(0, 0);
   }
-  window.addEventListener('online', flush);
-  const prizeName = c => c.prize || prizes[c.id];
-
-  // The owner pressed '새 손님 받기' while this phone was still playing: stop here and keep only issued coupons.
-  function cutSession(){
-    if (!session) return;
-    session.ops = [];
-    session.won = session.won.filter(c => c.code);
-    session.cut = true; session.coins = 0; session.ended = true;
-    save(); updateUI(); clearWins();
-    setMessage('테이블이 정리돼서 게임이 끝났어요.');
-    renderResult();
+  function showModes(){
+    session = null; save(); clearWins(); updateUI(); hide('result');
+    setMessage('모드를 골라 주세요.');
+    show('modes');
   }
+  $('goTrial').addEventListener('click', () => startGame('trial'));
+  $('goReal').addEventListener('click', async () => { if (await askPin('리얼 · 사장님 PIN')) startGame('real'); });
 
   // ---------- end of game ----------
+  const DAYS = ['일','월','화','수','목','금','토'];
+  const dateLabel = t => { const d = new Date(t); return `${d.getMonth()+1}월 ${d.getDate()}일 (${DAYS[d.getDay()]})`; };
+  function grouped(ids){
+    const n = {}; ids.forEach(id => n[id] = (n[id] || 0) + 1);
+    return PRIZE_IDS.filter(id => n[id]).map(id => `<li class="coupon"><span class="trio">${icon(id)}</span><b>${esc(prizes[id])}</b><span class="code">×${n[id]}</span></li>`).join('');
+  }
   function endSession(){
     if (!session || session.ended) return;
     session.ended = true;
-    enqueue({ action:'end' });
     save(); updateUI();
     renderResult();
   }
-  // The end screen stays up (no close button): it tells the guest exactly what happens next
-  // and follows each coupon until the staff marks it served on the owner console.
-  let pollTimer = null;
-  const retryBlock = () => `<p class="sent fail">${sendFailed ? '연결이 안 돼요. 인터넷을 확인해 주세요.' : '잠시만요…'}</p>`
-    + `<button class="btn ghost" id="retry" ${flushing ? 'disabled' : ''}>${flushing ? '보내는 중…' : '다시 시도'}</button>`;
   function renderResult(){
     const card = $('resultCard');
-    const sending = session.ops && session.ops.length;
-    const when = new Date(session.started).toLocaleString('ko-KR', { month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
-    if (session.won.length) {
-      const left = session.won.filter(c => !c.served).length;
-      const allDone = !left && !sending;
-      card.innerHTML = `
-        <h3>${allDone ? '맛있게 드세요!' : '당첨 축하해요!'}</h3>
-        ${session.cut ? '<p class="note">게임이 끝났어요.</p>' : ''}
-        <p>${allDone
-          ? '경품을 모두 받으셨어요.<br>다음 방문 때 또 도전해 주세요.'
-          : '<b>직원에게 이 화면을 보여 주세요.</b>'}</p>
-        <ul class="coupons">${session.won.map(c => `<li class="coupon${c.served ? ' served' : ''}"><span class="trio">${icon(c.id)}</span><b>${esc(prizeName(c))}</b>${
-          c.served ? '<span class="code done">받음 ✓</span>'
-          : c.code ? `<span class="code">#${esc(c.code)}</span>` : '<span class="code wait">발급 중…</span>'}</li>`).join('')}</ul>
-        ${sending ? retryBlock()
-          : ''}
-        <p class="stamp">테이블 ${esc(session.table)} · ${esc(session.name)} · ${when} · ${session.spins}번 돌림</p>`;
+    const date = `<div class="result-date"><small>${session.mode === 'trial' ? 'TRIAL · 연습' : 'REAL'}</small>${dateLabel(session.started)}</div>`;
+    if (session.mode === 'trial') {
+      card.innerHTML = `${date}
+        <h3 class="small">${session.won.length ? '연습 당첨!' : '연습 끝!'}</h3>
+        ${session.won.length ? `<ul class="coupons">${grouped(session.won)}</ul><p class="note">연습 게임이라 경품은 없어요.</p>` : `<p>${session.spins}번 돌렸어요.</p>`}
+        <button class="btn" id="againBtn">다시 하기</button>
+        <button class="link-btn" id="homeBtn">처음 화면</button>`;
+      $('againBtn').onclick = () => startGame('trial');
+      $('homeBtn').onclick = showModes;
+    } else if (session.won.length) {
+      // a real win stays on screen until the owner closes it with the PIN
+      card.innerHTML = `${date}
+        <h3>당첨 축하해요!</h3>
+        <p><b>직원에게 이 화면을 보여 주세요.</b></p>
+        <ul class="coupons">${grouped(session.won)}</ul>
+        <button class="link-btn" id="ownerClose">사장님 확인</button>`;
+      $('ownerClose').onclick = async () => { if (await askPin('사장님 확인')) showModes(); };
     } else {
-      card.innerHTML = session.cut ? `
-        <h3 class="small">게임이 끝났어요</h3>
-        <p>다음 방문 때 또 만나요!</p>` : `
-        <h3 class="small">이번엔 당첨이 없었어요</h3>
-        <p>${session.spins}번 돌렸는데 아쉽게 빗나갔어요.<br>다음 방문 때 또 도전해 주세요.</p>
-        ${sending ? retryBlock() : ''}
-        <p class="stamp">테이블 ${esc(session.table)} · ${esc(session.name)} · ${when}</p>`;
+      card.innerHTML = `${date}
+        <h3 class="small">아쉽게 빗나갔어요</h3>
+        <p>${session.spins}번 돌렸어요. 다음에 또 도전해 주세요!</p>
+        <button class="btn" id="homeBtn">처음 화면</button>`;
+      $('homeBtn').onclick = showModes;
     }
-    const r = $('retry'); if (r) r.onclick = () => flush();
     show('result');
-    clearTimeout(pollTimer);
-    if (session.won.some(c => !c.served)) pollTimer = setTimeout(pollCoupons, 8000);
-  }
-  async function pollCoupons(){
-    if (!session || !session.ended) return;
-    try {
-      const r = await apiGet({ action:'table', table: session.table, session: session.id });
-      if (r.ok && r.mine && Array.isArray(r.coupons)) {
-        r.coupons.forEach(rc => { const c = session.won.find(x => x.code === String(rc.code)); if (c) c.served = !!rc.served; });
-        save();
-      } else if (r.ok && !r.mine && !(session.ops && session.ops.length)) {
-        session.won.forEach(c => c.served = true); save();   // the table was cleared after serving
-      }
-    } catch {}
-    renderResult();
   }
   function confirmEnd(){
     const card = $('resultCard');
@@ -938,82 +916,32 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
     show('result');
   }
 
-  // ---------- entry from the table's QR sticker (?t=<table number>) ----------
-  const tableNo = (new URLSearchParams(location.search).get('t') || '').replace(/\D/g, '').slice(0, 3);
-  function infoCard(title, body, btn, onBtn){
-    $('infoCard').innerHTML = `<h3 class="small">${title}</h3>${body ? `<p>${body}</p>` : ''}${btn ? `<button class="btn" id="infoBtn">${btn}</button>` : ''}`;
-    const b = $('infoBtn'); if (b) b.onclick = () => { hide('info'); onBtn && onBtn(); };
-    show('info');
+  // ---------- owner PIN (checked on this phone; see config.js) ----------
+  async function sha(text){ const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('lastcall:' + text)); return btoa(String.fromCharCode(...new Uint8Array(d))); }
+  let pinResolve = null, pinBuf = '';
+  $('keypad').innerHTML = [1,2,3,4,5,6,7,8,9].map(n => `<button data-k="${n}">${n}</button>`).join('')
+    + '<button class="muted" data-k="cancel">취소</button><button data-k="0">0</button><button class="muted" data-k="del">지우기</button>';
+  const drawPin = () => [...$('pinDots').children].forEach((d,i) => d.classList.toggle('on', i < pinBuf.length));
+  function askPin(title){
+    return new Promise(res => {
+      pinResolve = res; pinBuf = '';
+      $('pinTitle').textContent = title; $('pinErr').textContent = '';
+      drawPin(); show('pinModal');
+    });
   }
-  function refuse(status, name){
-    if (status === '게임 중') infoCard('이미 게임 중이에요', `${esc(name || '다른 분')} 님이 먼저 시작했어요.`);
-    else infoCard('이 테이블은 이미 참여했어요', '다음 방문 때 또 만나요!');
-  }
-  // rebuild the game from the address bar + the sheet when this browser kept nothing
-  async function restoreFromUrl(){
-    const q = new URLSearchParams(location.search), sid = q.get('s');
-    if (session || !sid || !tableNo) return;
-    infoCard('잠시만요…', '');
-    try {
-      const r = await apiGet({ action:'table', table: tableNo, session: sid });
-      if (!r.ok || !r.mine) return;
-      prizes = Object.assign({}, PRIZE_DEFAULTS, r.prizes || {});
-      const idOf = name => PRIZE_IDS.find(id => prizes[id] === name) || 'cilantro';
-      session = { table: tableNo, id: sid, name: r.name, prizes: r.prizes || {},
-                  coins: Math.max(0, Math.min(99, parseInt(q.get('c'), 10) || 0)), spins: parseInt(q.get('n'), 10) || 0,
-                  won: (r.coupons || []).map(c => ({ id: idOf(c.prize), code: String(c.code), prize: c.prize, served: !!c.served })),
-                  ops: [], started: Date.now(), ended: r.status !== '게임 중' };
-      buildPaytable(); save(); updateUI();
-    } catch {}
-    hide('info');
-  }
-  async function checkTable(){
-    if (!API) return infoCard('지금은 쉬는 중이에요', '조금 뒤에 다시 찾아 주세요.');
-    await restoreFromUrl();
-    if (session && session.ended && session.table === tableNo && new URLSearchParams(location.search).get('s') === session.id) return renderResult();
-    if (session && !session.ended) { setMessage(`남은 코인 ${session.coins}개. SPIN을 눌러 계속하세요.`); flush(); return; }
-    if (!tableNo) {
-      if (session) return renderResult();
-      return infoCard('테이블 QR을 찍어 주세요', '무료 코인 10개로 한 판!');
-    }
-    const lastHere = session && session.table === tableNo && session.ended;
-    if (lastHere && session.ops && session.ops.length) { renderResult(); flush(); return; }
-    infoCard('잠시만요…', '');
-    let r;
-    try { r = await apiGet(lastHere ? { action:'table', table: tableNo, session: session.id } : { action:'table', table: tableNo }); }
-    catch {
-      if (lastHere) { hide('info'); return renderResult(); }
-      return infoCard('연결이 안 돼요', '인터넷을 확인해 주세요.', '다시 시도', checkTable);
-    }
-    hide('info');
-    if (lastHere && r.ok && r.mine) return renderResult();   // still this visit: show the end screen again
-    if (!r.ok) return infoCard('QR을 다시 찍어 주세요', '');
-    prizes = Object.assign({}, PRIZE_DEFAULTS, r.prizes || {}); buildPaytable();
-    if (r.status !== '게임 가능') return refuse(r.status, r.name);
-    $('joinTable').textContent = tableNo;
-    show('join'); setTimeout(() => $('nick').focus(), 50);
-  }
-  $('joinForm').addEventListener('submit', async e => {
-    e.preventDefault();
-    const name = $('nick').value.trim();
-    if (!name) { $('joinErr').textContent = '닉네임을 적어 주세요.'; return; }
-    $('joinBtn').disabled = true; $('joinBtn').textContent = '시작하는 중…'; $('joinErr').textContent = '';
-    let r;
-    try { r = await apiPost({ action:'join', table: tableNo, name }); }
-    catch { r = null; }
-    finally { $('joinBtn').disabled = false; $('joinBtn').textContent = '코인 받고 시작하기'; }
-    if (!r) { $('joinErr').textContent = '연결이 안 돼요. 다시 눌러 주세요.'; return; }
-    if (!r.ok) {
-      if (r.reason) { hide('join'); return refuse(r.reason, r.name); }
-      $('joinErr').textContent = r.error === 'busy' ? '잠시 후 다시 눌러 주세요.' : '시작하지 못했어요. 직원에게 말씀해 주세요.';
-      return;
-    }
-    prizes = Object.assign({}, PRIZE_DEFAULTS, r.prizes || {});
-    session = { table: String(r.table), id: r.session, name: r.name, prizes: r.prizes || {},
-                coins: START_COINS, spins: 0, won: [], ops: [], started: Date.now(), ended: false };
-    buildPaytable(); save(); hide('join'); clearWins(); updateUI();
-    SFX.coins(10, 0);
-    setMessage(`코인 ${START_COINS}개 받았어요! SPIN을 눌러 시작하세요.`);
+  const pinDone = ok => { hide('pinModal'); const r = pinResolve; pinResolve = null; r && r(ok); };
+  $('keypad').addEventListener('click', async e => {
+    const k = e.target.closest('button')?.dataset.k; if (!k) return;
+    SFX.relay(.6);
+    if (k === 'cancel') return pinDone(false);
+    if (k === 'del') { pinBuf = pinBuf.slice(0,-1); return drawPin(); }
+    if (pinBuf.length >= 4) return;
+    pinBuf += k; drawPin();
+    if (pinBuf.length < 4) return;
+    const ok = (await sha(pinBuf)) === CFG.pinHash;
+    if (ok) return pinDone(true);
+    $('pinErr').textContent = 'PIN이 맞지 않아요.';
+    setTimeout(() => { pinBuf = ''; drawPin(); }, 250);
   });
 
   // ---------- events ----------
@@ -1021,13 +949,15 @@ button:focus-visible{outline:3px solid #9fd8ff;outline-offset:3px}
   $('endBtn').addEventListener('click', () => { if (session && !spinning) confirmEnd(); });
   $('mute').addEventListener('click', () => { soundOn = !soundOn; muteIcon(); save(); });
   document.addEventListener('keydown', e => {
-    const modal = !$('join').hidden || !$('info').hidden || !$('result').hidden;
-    if (e.code === 'Space' && !e.repeat && !modal && !(e.target instanceof HTMLButtonElement) && !(e.target instanceof HTMLInputElement)) { e.preventDefault(); spin(); }
+    const modal = !$('modes').hidden || !$('pinModal').hidden || !$('result').hidden;
+    if (e.code === 'Space' && !e.repeat && !modal && !(e.target instanceof HTMLButtonElement)) { e.preventDefault(); spin(); }
   });
 
   // ---------- boot ----------
   renderStatic(); muteIcon(); updateUI();
-  checkTable();
+  if (session && session.ended) renderResult();
+  else if (session) setMessage(`남은 코인 ${session.coins}개. SPIN을 눌러 계속하세요.`);
+  else showModes();
 
   // ---------- 3D symbol renders (three.js, rendered once to images) ----------
   function render3DSymbols(bg){

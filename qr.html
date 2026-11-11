@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>LAST CALL 입장 QR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Monoton&family=Song+Myung&family=VT323&display=swap">
+<style>
+/* One counter QR: shown full-screen on the main iPad, or printed on A4. */
+:root{--felt:#10302a;--brass:#caa452;--cream:#f1e8d2;--glow:#ffd77a;
+  --f-display:"Monoton","Song Myung",Georgia,serif;--f-ko:"Song Myung","Apple SD Gothic Neo",serif;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(ellipse at 50% 0%,#1d4a40 0%,transparent 65%),var(--felt);color:var(--cream);
+  font-family:var(--f-ko);display:grid;place-items:center;
+  padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.sign{width:min(560px,100%);display:grid;justify-items:center;gap:18px;text-align:center;padding:32px 24px;border-radius:28px;box-shadow:inset 0 0 0 3px var(--brass)}
+h1{margin:0;font:400 clamp(40px,11vw,72px) var(--f-display);color:var(--glow);letter-spacing:.02em;text-shadow:0 0 16px rgba(255,200,90,.5)}
+.sub{font-size:clamp(18px,4.6vw,24px);color:#ead9b2}
+.qr{background:#fff;border-radius:20px;padding:20px;width:min(360px,80vw);aspect-ratio:1}
+.qr svg{width:100%;height:100%;display:block}
+.how{font-size:clamp(16px,4vw,20px);color:#ead9b2}
+.print{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:max(14px,env(safe-area-inset-bottom,0px));min-height:40px;border-radius:20px;border:1px solid #6b5222;background:transparent;color:#e1c27c;font:15px var(--f-ko);padding:0 16px;cursor:pointer}
+@media print{.print{display:none}body{background:var(--felt);-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:12mm}}
+</style>
+</head>
+<body>
+<main class="sign">
+  <h1>LAST CALL</h1>
+  <div class="sub">무료 칵테일 슬롯</div>
+  <div class="qr" id="qr"></div>
+  <div class="how">카메라로 찍고 한 판!</div>
+</main>
+<button class="print" id="print">인쇄하기</button>
+<script src="vendor/qrcode.js"></script>
+<script>
+  const q = qrcode(0, 'M'); q.addData(new URL('./', location.href).href); q.make();
+  document.getElementById('qr').innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+  document.getElementById('print').onclick = () => window.print();
+</script>
+</body>
+</html>
